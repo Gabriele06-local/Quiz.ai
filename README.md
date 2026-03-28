@@ -50,7 +50,7 @@ quiz.ai/
 ## Sicurezza (checklist)
 
 - **Repository**: `.env` e `public/supabase-config.js` sono in `.gitignore`; in repo resta solo `.env.example` senza segreti.
-- **Netlify**: in *Site settings → Environment variables* imposta `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY` (oppure `SUPABASE_URL` + `SUPABASE_ANON_KEY`). Non configurare la **service role** per il build del sito statico: finirebbe nel JS generato.
+- **Netlify**: in *Site settings → Environment variables* imposta `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY` (oppure `SUPABASE_URL` + `SUPABASE_ANON_KEY`). Non configurare la **service role** per il build del sito statico: finirebbe nel JS generato. **Importante:** ogni variabile deve essere abilitata per i **build** (in UI: scope che include *Builds* / *Include in builds*). Se manca, `supabase-config.js` resta con URL e chiave vuoti e in sito vedi «Account cloud (Supabase)» anche con le variabili presenti: controlla lo scope, poi *Trigger deploy* → *Clear cache and deploy site*.
 - **Supabase Dashboard**: verifica che su *Authentication → Providers* e *URL configuration* siano coerenti redirect e sito pubblicato; RLS resta la barriera principale lato dati.
 - **Deploy**: `netlify.toml` imposta header `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` sulle risposte statiche.
 

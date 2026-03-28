@@ -41,4 +41,19 @@ window.__QUIZ_SUPABASE__ = ${JSON.stringify({ url, key })};
 
 mkdirSync(publicDir, { recursive: true });
 writeFileSync(resolve(publicDir, "supabase-config.js"), out, "utf8");
+
+const isNetlify = String(process.env.NETLIFY || "").toLowerCase() === "true";
+if (isNetlify && (!url || !key)) {
+  console.error(
+    "\n[quiz.ai] Build Netlify: URL o chiave Supabase mancanti.\n" +
+      "Le variabili devono essere disponibili durante il BUILD (non solo a runtime).\n" +
+      "In Netlify: Site settings → Environment variables → per ciascuna variabile apri le opzioni\n" +
+      "e assicurati che sia incluso lo scope «Builds» / «Include in builds» (oltre a Deploy e Functions se serve).\n" +
+      "Nomi attesi: NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY\n" +
+      "(oppure SUPABASE_URL e SUPABASE_ANON_KEY).\n" +
+      "Poi «Trigger deploy» → «Clear cache and deploy site».\n"
+  );
+  process.exit(1);
+}
+
 console.log("public/supabase-config.js written.", url ? "URL ok." : "URL vuoto (solo locale/offline).");
