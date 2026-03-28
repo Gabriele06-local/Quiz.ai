@@ -2,6 +2,8 @@
 
 App web statica per studiare con quiz a scelta multipla: incolli il testo, l’app riconosce domande e risposte e ti guida domanda per domanda.
 
+**Online:** [quizioai.netlify.app](https://quizioai.netlify.app/)
+
 ## Come usarlo
 
 1. Apri **`index.html`** nel browser (doppio clic sul file). Non serve installare nulla né avviare un server.
@@ -32,9 +34,11 @@ Tutto è salvato in **localStorage** sul tuo PC (non su server):
 
 | File        | Ruolo                          |
 | ----------- | ------------------------------ |
-| `index.html`| Pagina e struttura             |
-| `styles.css`| Stili e temi chiaro/scuro      |
-| `app.js`    | Parser del testo e logica quiz |
+| `index.html`     | Pagina e struttura                |
+| `styles.css`     | Stili e temi chiaro/scuro         |
+| `app.js`         | Parser del testo e logica quiz    |
+| `favicon.svg`    | Logo e icona del sito             |
+| `site.webmanifest` | PWA manifest (nome, tema, icona) |
 
 ## Repository
 
