@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="it" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>
+    (function () {
+      try {
+        var s = localStorage.getItem("quiz-ai-theme");
+        if (s === "light" || s === "dark") document.documentElement.setAttribute("data-theme", s);
+      } catch (e) {}
+    })();
+  </script>
+  <title>Quiz.ai — Incolla e studia</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bg-noise" aria-hidden="true"></div>
+  <div class="app">
+    <header class="header">
+      <div class="header-top">
+        <div class="brand">
+          <span class="brand-mark">◆</span>
+          <h1>Quiz.ai</h1>
+        </div>
+        <button
+          type="button"
+          id="btn-theme"
+          class="theme-toggle"
+          aria-label="Passa al tema chiaro"
+          title="Tema"
+        >
+          <span class="theme-toggle-track" aria-hidden="true">
+            <span class="theme-toggle-thumb"></span>
+          </span>
+          <span class="theme-toggle-label">
+            <span class="theme-label-light">Giorno</span>
+            <span class="theme-label-dark">Notte</span>
+          </span>
+        </button>
+      </div>
+      <p class="tagline">Incolla il testo del quiz: riconosco domande, opzioni, risposte e suggerimenti.</p>
+    </header>
+
+    <main>
+      <section id="panel-input" class="panel panel-input">
+        <label class="label" for="raw-text">Testo del quiz</label>
+        <textarea
+          id="raw-text"
+          class="textarea"
+          rows="14"
+          placeholder="Incolla qui le domande nel formato che usi di solito (numeri, A) B) C) D), ✅ Risposta: …)"
+          spellcheck="false"
+        ></textarea>
+        <div id="resume-banner" class="resume-banner" hidden>
+          <p id="resume-banner-text" class="resume-banner-text"></p>
+          <div class="resume-banner-actions">
+            <button type="button" id="btn-resume" class="btn btn-primary btn-small">Continua</button>
+            <button type="button" id="btn-discard-progress" class="btn btn-ghost btn-small">Scarta sospeso</button>
+          </div>
+        </div>
+        <div class="input-actions">
+          <button type="button" id="btn-parse" class="btn btn-primary">Analizza e inizia</button>
+          <button type="button" id="btn-sample" class="btn btn-ghost">Carica esempio</button>
+        </div>
+        <p id="parse-error" class="parse-error" hidden></p>
+
+        <div class="history-block">
+          <h3 class="subsection-title history-heading">Storico quiz</h3>
+          <p id="history-empty" class="history-empty">Nessun quiz salvato. Dai risultati usa «Salva negli appunti» per tenerlo.</p>
+          <ul id="history-list" class="history-list" aria-label="Quiz salvati"></ul>
+        </div>
+      </section>
+
+      <section id="panel-quiz" class="panel panel-quiz" hidden>
+        <div class="quiz-top">
+          <div class="progress-wrap">
+            <div id="progress-bar" class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+              <div id="progress-fill" class="progress-fill"></div>
+            </div>
+            <span id="progress-label" class="progress-label">0 / 0</span>
+          </div>
+          <button type="button" id="btn-reset" class="btn btn-ghost btn-small">Nuovo testo</button>
+        </div>
+
+        <article class="question-card">
+          <p id="question-meta" class="question-meta"></p>
+          <h2 id="question-text" class="question-text"></h2>
+          <div id="options" class="options"></div>
+
+          <div class="argomentazione">
+            <label class="label label-inline" for="arg-text">Argomentazione (opzionale)</label>
+            <textarea id="arg-text" class="textarea textarea-compact" rows="3" placeholder="Spiega perché hai scelto questa risposta…"></textarea>
+          </div>
+
+          <div class="quiz-actions">
+            <button type="button" id="btn-submit" class="btn btn-primary" disabled>Conferma risposta</button>
+            <button type="button" id="btn-hint" class="btn btn-ghost" hidden>Mostra suggerimento</button>
+          </div>
+
+          <div id="hint-box" class="hint-box" hidden></div>
+          <div id="feedback" class="feedback" hidden></div>
+        </article>
+      </section>
+
+      <section id="panel-results" class="panel panel-results" hidden>
+        <h2 class="results-title">Risultati</h2>
+        <p id="results-score" class="results-score"></p>
+        <p id="results-detail" class="results-detail"></p>
+
+        <div id="wrong-list" class="wrong-list" hidden>
+          <h3 class="subsection-title">Domande sbagliate</h3>
+          <ul id="wrong-items" class="wrong-items"></ul>
+        </div>
+
+        <div class="results-actions">
+          <button type="button" id="btn-save-history" class="btn btn-primary">Salva negli appunti</button>
+          <button type="button" id="btn-review" class="btn btn-primary" hidden>Ripasso solo sbagliate</button>
+          <button type="button" id="btn-retry-all" class="btn btn-ghost">Rifai tutto il quiz</button>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Pattern: <code>1.</code> / <code>1)</code> o titoli <code>### **1. …**</code>, separatori <code>---</code>, opzioni <code>A)</code>…<code>D)</code>, risposta <code>✅ **Risposta: X**</code> o <code>Risposta:</code>, suggerimento <code>💡</code> / <code>Suggerimento:</code></span>
+    </footer>
+  </div>
+  <script src="app.js" defer></script>
+</body>
+</html>
