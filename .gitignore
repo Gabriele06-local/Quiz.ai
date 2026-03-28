@@ -1,6 +1,9 @@
 favicon-extract/
 *favicon*.zip
 
+.env
+public/supabase-config.js
+
 .DS_Store
 Thumbs.db
 desktop.ini

@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="it" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>
+    (function () {
+      try {
+        var s = localStorage.getItem("quiz-ai-theme");
+        if (s === "light" || s === "dark") document.documentElement.setAttribute("data-theme", s);
+      } catch (e) {}
+    })();
+    (function () {
+      if (location.protocol === "file:") document.documentElement.classList.add("quiz-file-origin");
+    })();
+  </script>
+  <title>Quiz.ai — Incolla e studia</title>
+  <meta name="description" content="Incolla il testo del quiz: domande, opzioni e risposte. Account opzionale, tema chiaro/scuro, storico locale e cloud." />
+  <link rel="canonical" href="https://quizioai.netlify.app/" />
+  <meta property="og:url" content="https://quizioai.netlify.app/" />
+  <meta property="og:title" content="Quiz.ai — Incolla e studia" />
+  <meta property="og:description" content="Quiz a scelta multipla da testo incollato. Account Supabase opzionale per sync cloud." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://quizioai.netlify.app/favicon.svg" />
+  <meta name="theme-color" content="#0c0f14" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#eef1f7" media="(prefers-color-scheme: light)" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
+  <style>[hidden]{display:none!important}</style>
+  <script>
+    (function () {
+      if (location.protocol === "http:" || location.protocol === "https:") {
+        var l = document.createElement("link");
+        l.rel = "manifest";
+        l.href = "site.webmanifest";
+        document.head.appendChild(l);
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+  <div class="bg-noise" aria-hidden="true"></div>
+  <div class="app">
+    <div id="quiz-file-env-banner" class="quiz-file-env-banner" role="status" hidden>
+      <p class="quiz-file-env-text">
+        Stai aprendo la pagina con <code>file://</code>. In console può comparire
+        <em>«Unsafe attempt to load URL file://… from frame…»</em>: i browser trattano ogni percorso locale come origine distinta e spesso bloccano caricamenti in <strong>iframe</strong> (es. anteprima nell’editor). Non indica un difetto di Quiz.ai.
+        Per evitare avvisi e per usare al meglio login e API, servi la cartella con HTTP, ad es. da terminale nella cartella <code>public</code>:
+        <code class="quiz-file-env-cmd">python -m http.server 8000</code>
+        poi apri <code>http://localhost:8000</code>.
+      </p>
+      <button type="button" class="btn btn-ghost btn-small quiz-file-env-dismiss" id="btn-dismiss-file-banner">Chiudi avviso</button>
+    </div>
+    <header class="header">
+      <div class="header-top">
+        <div class="brand">
+          <img class="brand-logo" src="favicon.svg" width="44" height="44" alt="" decoding="async" />
+          <h1>Quiz.ai</h1>
+        </div>
+        <div class="header-actions">
+          <div id="auth-bar" class="auth-bar">
+            <p id="auth-no-config" class="auth-no-config" hidden>Supabase non configurato.</p>
+            <div id="auth-guest" class="auth-guest">
+              <button type="button" id="btn-login" class="btn btn-ghost btn-small">Accedi</button>
+              <button type="button" id="btn-register" class="btn btn-primary btn-small">Registrati</button>
+            </div>
+            <div id="auth-user" class="auth-user" hidden>
+              <span id="auth-email" class="auth-email" title=""></span>
+              <button type="button" id="btn-logout" class="btn btn-ghost btn-small">Esci</button>
+            </div>
+          </div>
+          <button
+            type="button"
+            id="btn-theme"
+            class="theme-toggle"
+            aria-label="Passa al tema chiaro"
+            title="Tema"
+          >
+            <span class="theme-toggle-track" aria-hidden="true">
+              <span class="theme-toggle-thumb"></span>
+            </span>
+            <span class="theme-toggle-label">
+              <span class="theme-label-light">Giorno</span>
+              <span class="theme-label-dark">Notte</span>
+            </span>
+          </button>
+        </div>
+      </div>
+      <p class="tagline">Incolla il testo del quiz: riconosco domande, opzioni, risposte e suggerimenti.</p>
+    </header>
+
+    <main>
+      <section id="panel-input" class="panel panel-input">
+        <div class="input-layout">
+          <div class="input-column-main">
+            <label class="label" for="raw-text">Testo del quiz</label>
+            <textarea
+              id="raw-text"
+              class="textarea"
+              rows="14"
+              placeholder="Incolla qui le domande nel formato che usi di solito (numeri, A) B) C) D), ✅ Risposta: …)"
+              spellcheck="false"
+            ></textarea>
+            <div id="resume-banner" class="resume-banner" hidden>
+              <p id="resume-banner-text" class="resume-banner-text"></p>
+              <div class="resume-banner-actions">
+                <button type="button" id="btn-resume" class="btn btn-primary btn-small">Continua</button>
+                <button type="button" id="btn-discard-progress" class="btn btn-ghost btn-small">Scarta sospeso</button>
+              </div>
+            </div>
+            <div class="input-actions">
+              <button type="button" id="btn-parse" class="btn btn-primary">Analizza e inizia</button>
+              <button type="button" id="btn-sample" class="btn btn-ghost">Carica esempio</button>
+            </div>
+            <p id="parse-error" class="parse-error" hidden></p>
+          </div>
+          <aside class="input-column-prompt" aria-labelledby="llm-prompt-heading">
+            <div class="llm-prompt-card">
+              <h3 class="llm-prompt-heading" id="llm-prompt-heading">Prompt per l’IA</h3>
+              <p class="llm-prompt-lead">
+                Copialo in ChatGPT, Claude, Gemini, ecc.: chiedi di restituire <strong>solo</strong> testo grezzo nel formato che legge Quiz.ai.
+              </p>
+              <label class="label" for="llm-prompt-text">Testo da incollare nell’LLM</label>
+              <textarea id="llm-prompt-text" class="textarea llm-prompt-textarea" readonly rows="20" spellcheck="false">Devi produrre un quiz a scelta multipla in ITALIANO, come testo semplice (niente JSON, niente HTML). L’output sarà incollato nell’app Quiz.ai che accetta SOLO questo schema.
+
+REGOLE OBBLIGATORIE
+
+1) OGNI domanda deve iniziare con una riga che, dopo eventuali cancelletti Markdown (# … ###), contenga un numero e poi punto o parentesi e il testo. Esempi validi:
+   - 1. Enunciato della domanda
+   - 2) Enunciato della domanda
+   - ### **3. Enunciato della domanda**
+   Righe successive (prima delle opzioni) possono continuare l’enunciato.
+
+2) Subito dopo l’enunciato servono ESATTAMENTE quattro opzioni, lettere A B C D, ciascuna su una riga che inizia con la lettera e poi ), . oppure : e uno spazio:
+   A) …
+   B) …
+   C) …
+   D) …
+
+3) Subito dopo le quattro opzioni, UNA sola riga con la risposta corretta, con una di queste forme (lettera A–D):
+   Risposta: C
+   Risposta corretta: C
+   ✅ Risposta: C
+   (Markdown tipo ** sulla riga va bene.)
+
+4) Opzionale, dopo la risposta: suggerimento su una o più righe che iniziano con:
+   Suggerimento: …
+   oppure 💡 Suggerimento: …
+   oppure Hint: …
+
+5) Righe che sono solo trattini/asterischi (es. --- o ***) sono separatori e vanno ignorate nel contenuto.
+
+6) Non passare alla domanda successiva senza aver messo tutte e quattro le opzioni e la riga “Risposta: X” per quella domanda.
+
+ESEMPIO (un blocco; replicare lo stesso schema per le altre domande):
+
+1. Qual è la capitale d’Italia?
+
+A) Milano
+B) Roma
+C) Napoli
+D) Torino
+
+Risposta: B
+
+---
+
+2. Quale di questi è un protocollo di livello trasporto?
+
+A) HTTP
+B) TCP
+C) IP
+D) Ethernet
+
+Risposta: B
+Suggerimento: TCP è orientato alla connessione; IP è di rete.
+
+Restituisci solo il testo del quiz così formattato, senza commenti introduttivi o finali.</textarea>
+              <div class="llm-prompt-actions">
+                <button type="button" id="btn-copy-llm-prompt" class="btn btn-primary btn-small">Copia negli appunti</button>
+                <span id="llm-copy-feedback" class="llm-copy-feedback" hidden>Copiato</span>
+              </div>
+            </div>
+          </aside>
+        </div>
+
+        <div class="history-block">
+          <h3 class="subsection-title history-heading">Storico quiz</h3>
+          <div class="history-toolbar" id="history-toolbar" hidden>
+            <button type="button" id="btn-new-folder" class="btn btn-ghost btn-small">+ Nuova cartella</button>
+          </div>
+          <p id="history-auth-hint" class="history-empty" hidden>
+            Accedi per vedere e salvare lo storico nel database.
+          </p>
+          <p id="history-save-error" class="parse-error history-save-error" hidden></p>
+          <p id="history-empty" class="history-empty">Caricamento storico…</p>
+          <ul id="history-list" class="history-list" aria-label="Quiz salvati"></ul>
+        </div>
+      </section>
+
+      <section id="panel-quiz" class="panel panel-quiz" hidden>
+        <div class="quiz-top">
+          <div class="progress-wrap">
+            <div id="progress-bar" class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+              <div id="progress-fill" class="progress-fill"></div>
+            </div>
+            <span id="progress-label" class="progress-label">0 / 0</span>
+          </div>
+          <button type="button" id="btn-reset" class="btn btn-ghost btn-small">Nuovo testo</button>
+        </div>
+
+        <article class="question-card">
+          <p id="question-meta" class="question-meta"></p>
+          <h2 id="question-text" class="question-text"></h2>
+          <div id="options" class="options"></div>
+
+          <div class="argomentazione">
+            <label class="label label-inline" for="arg-text">Argomentazione (opzionale)</label>
+            <textarea id="arg-text" class="textarea textarea-compact" rows="3" placeholder="Spiega perché hai scelto questa risposta…"></textarea>
+          </div>
+
+          <div class="quiz-actions">
+            <button type="button" id="btn-submit" class="btn btn-primary" disabled>Conferma risposta</button>
+            <button type="button" id="btn-hint" class="btn btn-ghost" hidden>Mostra suggerimento</button>
+          </div>
+
+          <div id="hint-box" class="hint-box" hidden></div>
+          <div id="feedback" class="feedback" hidden></div>
+        </article>
+      </section>
+
+      <section id="panel-results" class="panel panel-results" hidden>
+        <h2 class="results-title">Risultati</h2>
+        <p id="results-score" class="results-score"></p>
+        <p id="results-detail" class="results-detail"></p>
+
+        <div id="wrong-list" class="wrong-list" hidden>
+          <h3 class="subsection-title">Domande sbagliate</h3>
+          <ul id="wrong-items" class="wrong-items"></ul>
+        </div>
+
+        <div class="results-actions">
+          <button type="button" id="btn-save-history" class="btn btn-primary">Salva negli appunti</button>
+          <button type="button" id="btn-review" class="btn btn-primary" hidden>Ripasso solo sbagliate</button>
+          <button type="button" id="btn-retry-all" class="btn btn-ghost">Rifai tutto il quiz</button>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Pattern: <code>1.</code> / <code>1)</code> o titoli <code>### **1. …**</code>, separatori <code>---</code>, opzioni <code>A)</code>…<code>D)</code>, risposta <code>✅ **Risposta: X**</code> o <code>Risposta:</code>, suggerimento <code>💡</code> / <code>Suggerimento:</code></span>
+    </footer>
+  </div>
+
+  <div id="auth-modal" class="auth-modal" hidden aria-hidden="true">
+    <div class="auth-modal-backdrop"></div>
+    <div class="auth-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
+      <h2 id="auth-modal-title" class="auth-modal-title">Account</h2>
+      <div id="auth-unconfigured" class="auth-unconfigured" hidden>
+        <p class="auth-unconfigured-lead">
+          <strong>Accedi</strong> e <strong>Registrati</strong> stanno qui: servono le credenziali del progetto <strong>Supabase</strong> (URL + chiave anonima).
+        </p>
+        <ul class="auth-unconfigured-list">
+          <li>Sul sito pubblicato (Netlify): imposta le variabili d’ambiente come da README e ridistribuisci.</li>
+          <li>In locale: esegui lo script che genera <code>public/supabase-config.js</code> oppure crea quel file a mano.</li>
+        </ul>
+        <p class="auth-unconfigured-note">Senza configurazione l’app funziona comunque: storico solo sul dispositivo.</p>
+        <div class="auth-modal-actions">
+          <button type="button" class="btn btn-primary" id="auth-modal-close-setup">Chiudi</button>
+        </div>
+      </div>
+      <div id="auth-modal-forms-wrap">
+      <div class="auth-tabs" role="tablist">
+        <button type="button" class="auth-tab" id="tab-login" role="tab" aria-selected="true">Accedi</button>
+        <button type="button" class="auth-tab" id="tab-register" role="tab" aria-selected="false">Registrati</button>
+      </div>
+      <p id="auth-error" class="auth-error" role="alert"></p>
+      <form id="form-login" class="auth-form is-active" autocomplete="on">
+        <div class="auth-field">
+          <label for="auth-email-in">Email</label>
+          <input type="email" id="auth-email-in" name="email" required autocomplete="email" />
+        </div>
+        <div class="auth-field">
+          <label for="auth-password-in">Password</label>
+          <input type="password" id="auth-password-in" name="password" required autocomplete="current-password" />
+        </div>
+        <div class="auth-modal-actions">
+          <button type="submit" class="btn btn-primary">Entra</button>
+          <button type="button" class="btn btn-ghost" id="auth-modal-close">Chiudi</button>
+        </div>
+      </form>
+      <form id="form-register" class="auth-form" autocomplete="on">
+        <div class="auth-field">
+          <label for="auth-email-up">Email</label>
+          <input type="email" id="auth-email-up" name="email" required autocomplete="email" />
+        </div>
+        <div class="auth-field">
+          <label for="auth-password-up">Password</label>
+          <input type="password" id="auth-password-up" name="password" required autocomplete="new-password" minlength="6" />
+        </div>
+        <div class="auth-field">
+          <label for="auth-password-up2">Ripeti password</label>
+          <input type="password" id="auth-password-up2" name="password2" required autocomplete="new-password" minlength="6" />
+        </div>
+        <div class="auth-modal-actions">
+          <button type="submit" class="btn btn-primary">Crea account</button>
+          <button type="button" class="btn btn-ghost" id="auth-modal-close-2">Chiudi</button>
+        </div>
+      </form>
+      </div>
+    </div>
+  </div>
+
+  <script>window.__QUIZ_SUPABASE__ = { url: "", key: "" };</script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js" defer></script>
+  <script src="supabase-config.js" defer onerror="this.remove()"></script>
+  <script src="assets/js/dom.js" defer></script>
+  <script src="assets/js/parser.js" defer></script>
+  <script src="assets/js/supabase-client.js" defer></script>
+  <script src="assets/js/theme.js" defer></script>
+  <script src="assets/js/auth-ui.js" defer></script>
+  <script src="assets/js/quiz-app.js" defer></script>
+  <script src="assets/js/main.js" defer></script>
+  <script>
+    (function () {
+      if (location.protocol !== "file:") return;
+      var b = document.getElementById("quiz-file-env-banner");
+      var btn = document.getElementById("btn-dismiss-file-banner");
+      if (b) b.hidden = false;
+      if (btn && b) {
+        btn.addEventListener("click", function () {
+          b.hidden = true;
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
