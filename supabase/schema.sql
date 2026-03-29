@@ -171,3 +171,63 @@ create policy "saved_quizzes_delete_own"
   for delete
   to authenticated
   using (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------------
+-- Tentativi quiz (statistiche per cartella)
+-- ---------------------------------------------------------------------------
+create table if not exists public.quiz_attempts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  folder_id uuid references public.saved_quiz_folders (id) on delete set null,
+  saved_quiz_id uuid references public.saved_quizzes (id) on delete set null,
+  correct_count integer not null,
+  total_count integer not null check (total_count > 0),
+  review_mode boolean not null default false,
+  exam_mode boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists quiz_attempts_user_created_idx
+  on public.quiz_attempts (user_id, created_at desc);
+
+create index if not exists quiz_attempts_user_folder_idx
+  on public.quiz_attempts (user_id, folder_id);
+
+comment on table public.quiz_attempts is 'Storico tentativi per statistiche; collegamento opzionale a cartella e quiz salvato.';
+
+alter table public.quiz_attempts enable row level security;
+
+drop policy if exists "quiz_attempts_select_own" on public.quiz_attempts;
+drop policy if exists "quiz_attempts_insert_own" on public.quiz_attempts;
+
+create policy "quiz_attempts_select_own"
+  on public.quiz_attempts
+  for select
+  to authenticated
+  using (auth.uid() = user_id);
+
+create policy "quiz_attempts_insert_own"
+  on public.quiz_attempts
+  for insert
+  to authenticated
+  with check (
+    auth.uid() = user_id
+    and (
+      folder_id is null
+      or exists (
+        select 1
+        from public.saved_quiz_folders f
+        where f.id = folder_id
+          and f.user_id = auth.uid()
+      )
+    )
+    and (
+      saved_quiz_id is null
+      or exists (
+        select 1
+        from public.saved_quizzes s
+        where s.id = saved_quiz_id
+          and s.user_id = auth.uid()
+      )
+    )
+  );

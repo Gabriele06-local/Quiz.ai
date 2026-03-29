@@ -45,6 +45,7 @@ quiz.ai/
 
 - Esegui `supabase/schema.sql` nel **SQL Editor** (progetto nuovo o allineamento completo).
 - Se avevi già la vecchia tabella senza cartelle: esegui anche `supabase/migration_from_v1.sql` (aggiunge `saved_quiz_folders`, `folder_id`, RLS cartelle e corregge il trigger `saved_quizzes_touch_updated_at` con `SET search_path = public` per il linter *Function Search Path Mutable*).
+- Per **statistiche** (pagina `stats.html`, tentativi per cartella): esegui `supabase/migration_quiz_attempts.sql` (tabella `quiz_attempts` + RLS) se il progetto esisteva già senza questa tabella.
 - **RLS quiz + cartelle**: le policy limitano tutto a `authenticated` e al proprio `user_id`; insert/update su `saved_quizzes` richiedono che `folder_id` sia `null` o una cartella **dello stesso utente**. Se il DB era stato creato prima di questo vincolo, esegui anche `supabase/patch_rls_quiz_folder_same_user.sql`.
 
 ## Sicurezza (checklist)

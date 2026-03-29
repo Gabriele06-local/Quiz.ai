@@ -905,12 +905,61 @@ body {
   color: var(--feedback-bad-fg);
 }
 
+.feedback.feedback-exam {
+  border: 1px solid var(--border);
+  background: var(--accent-dim);
+  color: var(--text);
+}
+
 [data-theme="light"] .feedback.ok {
   border-color: rgba(13, 143, 95, 0.35);
 }
 
 [data-theme="light"] .feedback.bad {
   border-color: rgba(196, 47, 56, 0.35);
+}
+
+.stats-main {
+  padding-bottom: 2.5rem;
+}
+
+.stats-section {
+  margin-top: 0.35rem;
+}
+
+.stats-chart-wrap {
+  position: relative;
+  margin: 1.25rem 0;
+  max-width: 760px;
+  min-height: 220px;
+}
+
+.stats-table-wrap {
+  overflow-x: auto;
+  margin-top: 1rem;
+}
+
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.stats-table th,
+.stats-table td {
+  padding: 0.55rem 0.85rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.stats-table th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+
+.stats-table tbody tr:hover td {
+  background: var(--ghost-hover);
 }
 
 .panel-results .results-title {

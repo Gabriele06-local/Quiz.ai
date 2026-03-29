@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="it" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>
+    (function () {
+      try {
+        var s = localStorage.getItem("quiz-ai-theme");
+        if (s === "light" || s === "dark") document.documentElement.setAttribute("data-theme", s);
+      } catch (e) {}
+    })();
+    (function () {
+      if (location.protocol === "file:") document.documentElement.classList.add("quiz-file-origin");
+    })();
+  </script>
+  <title>Quiz.ai — Statistiche</title>
+  <meta name="description" content="Statistiche tentativi quiz per cartella (account Supabase)." />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
+  <style>[hidden]{display:none!important}</style>
+  <link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+  <div class="bg-noise" aria-hidden="true"></div>
+  <div class="app">
+    <header class="header">
+      <div class="header-top">
+        <div class="brand">
+          <img class="brand-logo" src="favicon.svg" width="44" height="44" alt="" decoding="async" />
+          <h1>Quiz.ai</h1>
+        </div>
+        <div class="header-actions">
+          <a href="index.html" class="btn btn-ghost btn-small">← Quiz</a>
+          <button
+            type="button"
+            id="btn-theme"
+            class="theme-toggle"
+            aria-label="Passa al tema chiaro"
+            title="Tema"
+          >
+            <span class="theme-toggle-track" aria-hidden="true">
+              <span class="theme-toggle-thumb"></span>
+            </span>
+            <span class="theme-toggle-label">
+              <span class="theme-label-light">Giorno</span>
+              <span class="theme-label-dark">Notte</span>
+            </span>
+          </button>
+        </div>
+      </div>
+      <p class="tagline">Statistiche per cartella (tentativi salvati sul cloud).</p>
+    </header>
+
+    <main class="stats-main">
+      <section class="stats-section" aria-labelledby="stats-heading">
+        <h2 id="stats-heading" class="subsection-title">Riepilogo</h2>
+        <p id="stats-auth-hint" class="history-empty" hidden>Accedi dalla pagina principale per vedere le statistiche.</p>
+        <p id="stats-no-data" class="history-empty" hidden>Nessun tentativo registrato. Completa un quiz (con account) per popolare i dati.</p>
+        <p id="stats-error" class="parse-error" hidden></p>
+        <div id="stats-chart-wrap" class="stats-chart-wrap" hidden>
+          <canvas id="stats-chart" height="120" aria-label="Grafico media percentuale corretti per cartella"></canvas>
+        </div>
+        <div id="stats-table-wrap" class="stats-table-wrap" hidden>
+          <table class="stats-table" id="stats-table">
+            <thead>
+              <tr>
+                <th scope="col">Cartella</th>
+                <th scope="col">Tentativi</th>
+                <th scope="col">Media %</th>
+                <th scope="col">Ultimo</th>
+              </tr>
+            </thead>
+            <tbody id="stats-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>window.__QUIZ_SUPABASE__ = { url: "", key: "" };</script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" defer></script>
+  <script src="supabase-config.js" defer onerror="this.remove()"></script>
+  <script src="assets/js/dom.js" defer></script>
+  <script src="assets/js/supabase-client.js" defer></script>
+  <script src="assets/js/theme.js" defer></script>
+  <script src="assets/js/stats-app.js" defer></script>
+  <script src="assets/js/main-stats.js" defer></script>
+</body>
+</html>

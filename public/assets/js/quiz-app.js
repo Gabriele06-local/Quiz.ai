@@ -6,7 +6,11 @@
   const getSupabase = Q.getSupabase;
 
   const PROGRESS_KEY = "quiz-ai-progress";
-const STORAGE_VERSION = 2;
+const STORAGE_VERSION = 3;
+
+function isSupportedStorageVersion(v) {
+  return v === 2 || v === 3;
+}
 
 const SAMPLE = `1. Qual è la differenza principale tra informazione e segnale?
 
@@ -66,6 +70,11 @@ let wrongBank = [];
 let isReviewMode = false;
 let savedRawText = "";
 let saveSessionTimer = null;
+let examMode = false;
+/** @type {{ savedQuizId: string | null, folderId: string | null } | null} */
+let attemptContext = null;
+/** N° domande all’inizio del ripasso (per statistiche). */
+let reviewSessionTotal = 0;
 /** Evita duplicati in lista quando più chiamate a renderHistoryList si sovrappongono (auth + load). */
 let historyListRenderGeneration = 0;
 
@@ -73,6 +82,7 @@ const PREF_SHUFFLE = "quiz-ai-pref-shuffle";
 const PREF_TIMER_ON = "quiz-ai-pref-timer-on";
 const PREF_TIMER_MODE = "quiz-ai-pref-timer-mode";
 const PREF_TIMER_SEC = "quiz-ai-pref-timer-sec";
+const PREF_EXAM = "quiz-ai-pref-exam";
 
 /** @type {ReturnType<typeof setInterval> | null} */
 let quizTimerIntervalId = null;
@@ -116,6 +126,11 @@ function buildProgressPayload() {
     selected,
     argText: $("arg-text").value,
     hintVisible: !$("hint-box").hidden,
+    examMode,
+    attemptContext: attemptContext
+      ? { savedQuizId: attemptContext.savedQuizId, folderId: attemptContext.folderId }
+      : null,
+    reviewSessionTotal: isReviewMode ? reviewSessionTotal : 0,
   };
 
   if (panel === "results") {
@@ -174,7 +189,7 @@ function updateResumeBanner() {
     return;
   }
 
-  if (p.v !== STORAGE_VERSION || !Array.isArray(p.fullQuiz) || p.fullQuiz.length === 0) {
+  if (!isSupportedStorageVersion(p.v) || !Array.isArray(p.fullQuiz) || p.fullQuiz.length === 0) {
     $("resume-banner").hidden = true;
     return;
   }
@@ -186,7 +201,10 @@ function updateResumeBanner() {
     desc = `risultati aperti (${total} domande)`;
   } else {
     const i = Math.min(Math.max(0, p.index ?? 0), Math.max(0, activeLen - 1));
-    desc = p.answered ? `domanda ${i + 1} di ${activeLen} (risposta data)` : `domanda ${i + 1} di ${activeLen}`;
+    const ex = p.v === 3 && p.examMode ? " · esame" : "";
+    desc = p.answered
+      ? `domanda ${i + 1} di ${activeLen} (risposta data)${ex}`
+      : `domanda ${i + 1} di ${activeLen}${ex}`;
   }
 
   $("resume-banner-text").textContent = `Hai un quiz in sospeso: ${desc}.`;
@@ -208,6 +226,17 @@ function applyProgressData(p) {
   isReviewMode = !!p.isReviewMode;
   answered = !!p.answered;
   selected = typeof p.selected === "string" ? p.selected : null;
+  examMode = p.v === 3 && !!p.examMode;
+  if (p.v === 3 && p.attemptContext && typeof p.attemptContext === "object") {
+    const ac = p.attemptContext;
+    attemptContext = {
+      savedQuizId: typeof ac.savedQuizId === "string" ? ac.savedQuizId : null,
+      folderId: typeof ac.folderId === "string" ? ac.folderId : null,
+    };
+  } else {
+    attemptContext = null;
+  }
+  reviewSessionTotal = typeof p.reviewSessionTotal === "number" ? p.reviewSessionTotal : 0;
 }
 
 /**
@@ -271,7 +300,7 @@ function tryRestoreOnLoad() {
     return;
   }
 
-  if (p.v !== STORAGE_VERSION || !Array.isArray(p.fullQuiz) || p.fullQuiz.length === 0) {
+  if (!isSupportedStorageVersion(p.v) || !Array.isArray(p.fullQuiz) || p.fullQuiz.length === 0) {
     clearStoredProgress();
     updateResumeBanner();
     void renderHistoryList();
@@ -285,6 +314,9 @@ function tryRestoreOnLoad() {
 function abandonSession() {
   sessionTimerMode = "off";
   quizWideTimerStarted = false;
+  examMode = false;
+  attemptContext = null;
+  reviewSessionTotal = 0;
   fullQuiz = [];
   activeQuiz = [];
   index = 0;
@@ -572,7 +604,7 @@ function buildHistoryQuizRow(entry, folderOpts, folderGroups) {
   btnLoad.textContent = "Carica";
   btnLoad.addEventListener("click", () => {
     $("raw-text").value = entry.rawText;
-    startFromText(entry.rawText);
+    startFromText(entry.rawText, entry);
   });
   const btnDel = document.createElement("button");
   btnDel.type = "button";
@@ -865,6 +897,10 @@ function loadQuizPrefs() {
       const c = $("chk-shuffle");
       if (c) c.checked = true;
     }
+    if (localStorage.getItem(PREF_EXAM) === "1") {
+      const ex = $("chk-exam");
+      if (ex) ex.checked = true;
+    }
     if (localStorage.getItem(PREF_TIMER_ON) === "1") {
       const ct = $("chk-timer");
       if (ct) ct.checked = true;
@@ -890,6 +926,7 @@ function saveQuizPrefs() {
     localStorage.setItem(PREF_TIMER_ON, $("chk-timer")?.checked ? "1" : "0");
     localStorage.setItem(PREF_TIMER_MODE, $("timer-mode")?.value || "question");
     localStorage.setItem(PREF_TIMER_SEC, String($("timer-seconds")?.value || "60"));
+    localStorage.setItem(PREF_EXAM, $("chk-exam")?.checked ? "1" : "0");
   } catch (e) {}
 }
 
@@ -970,9 +1007,10 @@ function renderQuestion(restore) {
     answered = false;
   }
 
-  $("question-meta").textContent = isReviewMode
+  const baseMeta = isReviewMode
     ? `Ripasso · domanda ${index + 1} di ${activeQuiz.length}`
     : `Domanda ${index + 1} di ${activeQuiz.length}`;
+  $("question-meta").textContent = examMode ? `${baseMeta} · modalità esame` : baseMeta;
 
   $("question-text").textContent = q.stem;
 
@@ -1008,7 +1046,7 @@ function renderQuestion(restore) {
   $("feedback").textContent = "";
 
   $("btn-submit").disabled = true;
-  $("btn-hint").hidden = !q.hint;
+  $("btn-hint").hidden = examMode || !q.hint;
   $("btn-hint").textContent = "Mostra suggerimento";
 
   setProgress();
@@ -1039,26 +1077,39 @@ function applyAnsweredUI(q, selectedKey, argText, hintVisible) {
   $("options").querySelectorAll(".option").forEach((el) => {
     const k = el.dataset.key;
     el.disabled = true;
-    if (k === q.correct) el.classList.add("correct-reveal");
-    if (k === selectedKey && k !== q.correct) el.classList.add("wrong-reveal");
-    if (k === selectedKey) el.classList.add("selected");
+    if (examMode) {
+      if (k === selectedKey) el.classList.add("selected");
+    } else {
+      if (k === q.correct) el.classList.add("correct-reveal");
+      if (k === selectedKey && k !== q.correct) el.classList.add("wrong-reveal");
+      if (k === selectedKey) el.classList.add("selected");
+    }
   });
 
   const fb = $("feedback");
   fb.hidden = false;
-  fb.className = `feedback ${ok ? "ok" : "bad"}`;
-  const argFb = argomentazioneFeedback(ok, argText);
-  if (ok) {
-    fb.innerHTML = `<strong>Esatto.</strong> La risposta corretta è ${q.correct}.${argFb ? `<br/><span class="muted-inline">${escapeHtml(argFb)}</span>` : ""}`;
+  if (examMode) {
+    fb.className = "feedback feedback-exam";
+    fb.textContent =
+      "Risposta registrata. In modalità esame non viene mostrato se è corretta: il riepilogo completo è a fine quiz.";
   } else {
-    fb.innerHTML = `<strong>Sbagliato.</strong> La risposta corretta è <strong>${q.correct}</strong>: ${escapeHtml(q.options[q.correct])}.${argFb ? `<br/><span class="muted-inline">${escapeHtml(argFb)}</span>` : ""}`;
+    fb.className = `feedback ${ok ? "ok" : "bad"}`;
+    const argFb = argomentazioneFeedback(ok, argText);
+    if (ok) {
+      fb.innerHTML = `<strong>Esatto.</strong> La risposta corretta è ${q.correct}.${argFb ? `<br/><span class="muted-inline">${escapeHtml(argFb)}</span>` : ""}`;
+    } else {
+      fb.innerHTML = `<strong>Sbagliato.</strong> La risposta corretta è <strong>${q.correct}</strong>: ${escapeHtml(q.options[q.correct])}.${argFb ? `<br/><span class="muted-inline">${escapeHtml(argFb)}</span>` : ""}`;
+    }
   }
 
   $("btn-submit").textContent =
     index < activeQuiz.length - 1 ? "Continua" : isReviewMode ? "Termina ripasso" : "Vedi risultati";
   $("btn-submit").disabled = false;
 
-  if (hintVisible && q.hint) {
+  if (examMode) {
+    $("hint-box").hidden = true;
+    $("btn-hint").hidden = true;
+  } else if (hintVisible && q.hint) {
     $("hint-box").hidden = false;
     $("hint-box").innerHTML = `<strong>Suggerimento</strong><br/>${escapeHtml(q.hint)}`;
     $("btn-hint").hidden = false;
@@ -1090,6 +1141,26 @@ function revealAndFeedback() {
   saveSessionSoon();
 }
 
+async function recordQuizAttempt(correctCount, totalCount, isReview) {
+  const sb = getSupabase();
+  if (!sb) return;
+  const {
+    data: { session },
+  } = await sb.auth.getSession();
+  if (!session) return;
+  const ctx = attemptContext;
+  const { error } = await sb.from("quiz_attempts").insert({
+    user_id: session.user.id,
+    folder_id: ctx?.folderId || null,
+    saved_quiz_id: ctx?.savedQuizId || null,
+    correct_count: correctCount,
+    total_count: totalCount,
+    review_mode: isReview,
+    exam_mode: examMode,
+  });
+  if (error) console.warn("quiz_attempts insert:", error.message);
+}
+
 function fillWrongList(items) {
   const wi = $("wrong-items");
   wi.innerHTML = "";
@@ -1105,12 +1176,18 @@ function finishQuiz() {
   const total = fullQuiz.length;
   const wrongCount = wrongBank.length;
   const right = total - wrongCount;
+  void recordQuizAttempt(right, total, false);
   showPanel("results");
   $("results-score").textContent = `${right} / ${total} corrette`;
-  $("results-detail").textContent =
+  let detail =
     wrongCount === 0
       ? "Ottimo lavoro: nessun errore da ripassare."
       : `${wrongCount} domanda/e da ripassare. Puoi rifare solo quelle sbagliate.`;
+  if (examMode) {
+    detail +=
+      " Modalità esame: durante il quiz non vedevi esiti immediati sulla singola domanda né suggerimenti.";
+  }
+  $("results-detail").textContent = detail;
 
   if (wrongCount > 0) {
     $("wrong-list").hidden = false;
@@ -1124,13 +1201,21 @@ function finishQuiz() {
 }
 
 function finishReview() {
+  const total = Math.max(1, reviewSessionTotal || activeQuiz.length);
+  const still = wrongBank.length;
+  const right = Math.max(0, total - still);
+  void recordQuizAttempt(right, total, true);
   showPanel("results");
   $("results-score").textContent = "Ripasso completato";
-  const still = wrongBank.length;
-  $("results-detail").textContent =
+  let detail =
     still === 0
       ? "Hai risposto bene a tutte le domande del ripasso."
       : `Nel ripasso, ${still} domanda/e sono ancora errate. Puoi ripetere il ripasso su quelle.`;
+  if (examMode) {
+    detail +=
+      " Modalità esame: durante il ripasso non vedevi esiti immediati sulla singola domanda né suggerimenti.";
+  }
+  $("results-detail").textContent = detail;
 
   if (still > 0) {
     $("wrong-list").hidden = false;
@@ -1143,7 +1228,11 @@ function finishReview() {
   saveSessionSoon();
 }
 
-function startFromText(text) {
+/**
+ * @param {string} text
+ * @param {{ id: string, folderId?: string | null } | null} [historyEntry]
+ */
+function startFromText(text, historyEntry) {
   const parsed = parseQuizText(text);
   if (parsed.length === 0) {
     $("parse-error").hidden = false;
@@ -1153,6 +1242,12 @@ function startFromText(text) {
   }
   $("parse-error").hidden = true;
   applySessionTimerForNewQuiz();
+  attemptContext =
+    historyEntry && historyEntry.id
+      ? { savedQuizId: historyEntry.id, folderId: historyEntry.folderId || null }
+      : null;
+  examMode = !!$("chk-exam")?.checked;
+  reviewSessionTotal = 0;
   savedRawText = text;
   fullQuiz = parsed;
   activeQuiz = parsed.slice();
@@ -1191,6 +1286,7 @@ function shuffle(arr) {
     saveQuizPrefs();
   });
   $("timer-seconds")?.addEventListener("change", saveQuizPrefs);
+  $("chk-exam")?.addEventListener("change", saveQuizPrefs);
   document.addEventListener("keydown", onQuizKeyboardShortcut);
 
   $("btn-parse").addEventListener("click", () => {
@@ -1211,7 +1307,7 @@ function shuffle(arr) {
     if (!raw) return;
     try {
       const p = JSON.parse(raw);
-      if (p.v === STORAGE_VERSION && Array.isArray(p.fullQuiz) && p.fullQuiz.length > 0) {
+      if (isSupportedStorageVersion(p.v) && Array.isArray(p.fullQuiz) && p.fullQuiz.length > 0) {
         restoreFromPayload(p);
       }
     } catch (e) {}
@@ -1251,6 +1347,8 @@ function shuffle(arr) {
   $("btn-review").addEventListener("click", () => {
     if (wrongBank.length === 0) return;
     applySessionTimerForNewQuiz();
+    examMode = !!$("chk-exam")?.checked;
+    reviewSessionTotal = wrongBank.length;
     activeQuiz = shuffle(wrongBank.map((q) => ({ ...q })));
     index = 0;
     isReviewMode = true;
@@ -1267,6 +1365,8 @@ function shuffle(arr) {
 
   $("btn-retry-all").addEventListener("click", () => {
     applySessionTimerForNewQuiz();
+    examMode = !!$("chk-exam")?.checked;
+    reviewSessionTotal = 0;
     activeQuiz = fullQuiz.slice();
     if ($("chk-shuffle")?.checked) activeQuiz = shuffle(activeQuiz);
     index = 0;
