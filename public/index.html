@@ -112,6 +112,29 @@
                 <button type="button" id="btn-discard-progress" class="btn btn-ghost btn-small">Scarta sospeso</button>
               </div>
             </div>
+            <div class="input-quiz-prefs" aria-label="Opzioni quiz">
+              <label class="pref-check">
+                <input type="checkbox" id="chk-shuffle" />
+                <span>Mischia domande</span>
+              </label>
+              <div class="pref-timer">
+                <label class="pref-check">
+                  <input type="checkbox" id="chk-timer" />
+                  <span>Timer</span>
+                </label>
+                <label class="pref-timer-mode-label" for="timer-mode">
+                  <span class="visually-hidden">Modalità timer</span>
+                  <select id="timer-mode" class="select-timer-mode" disabled>
+                    <option value="question">Per domanda</option>
+                    <option value="quiz">Intero quiz</option>
+                  </select>
+                </label>
+                <label class="pref-timer-secs" for="timer-seconds">
+                  <span id="timer-seconds-label">Secondi</span>
+                  <input type="number" id="timer-seconds" class="input-timer-secs" min="15" max="7200" value="60" step="15" disabled />
+                </label>
+              </div>
+            </div>
             <div class="input-actions">
               <button type="button" id="btn-parse" class="btn btn-primary">Analizza e inizia</button>
               <button type="button" id="btn-sample" class="btn btn-ghost">Carica esempio</button>
@@ -210,11 +233,15 @@ Restituisci solo il testo del quiz così formattato, senza commenti introduttivi
             </div>
             <span id="progress-label" class="progress-label">0 / 0</span>
           </div>
+          <span id="quiz-timer" class="quiz-timer" hidden aria-live="polite"></span>
           <button type="button" id="btn-reset" class="btn btn-ghost btn-small">Nuovo testo</button>
         </div>
 
         <article class="question-card">
           <p id="question-meta" class="question-meta"></p>
+          <p class="quiz-keyboard-hint" id="quiz-keyboard-hint">
+            Tasti: <kbd>1</kbd>–<kbd>4</kbd> o <kbd>A</kbd>–<kbd>D</kbd> per scegliere, <kbd>Invio</kbd> per confermare (non mentre scrivi nell’argomentazione).
+          </p>
           <h2 id="question-text" class="question-text"></h2>
           <div id="options" class="options"></div>
 
@@ -245,15 +272,14 @@ Restituisci solo il testo del quiz così formattato, senza commenti introduttivi
 
         <div class="results-actions">
           <button type="button" id="btn-save-history" class="btn btn-primary">Salva negli appunti</button>
+          <button type="button" id="btn-copy-summary" class="btn btn-ghost">Copia riepilogo</button>
+          <span id="summary-copy-feedback" class="llm-copy-feedback" hidden>Copiato</span>
           <button type="button" id="btn-review" class="btn btn-primary" hidden>Ripasso solo sbagliate</button>
+          <button type="button" id="btn-results-home" class="btn btn-ghost">Torna alla home</button>
           <button type="button" id="btn-retry-all" class="btn btn-ghost">Rifai tutto il quiz</button>
         </div>
       </section>
     </main>
-
-    <footer class="footer">
-      <span>Pattern: <code>1.</code> / <code>1)</code> o titoli <code>### **1. …**</code>, separatori <code>---</code>, opzioni <code>A)</code>…<code>D)</code>, risposta <code>✅ **Risposta: X**</code> o <code>Risposta:</code>, suggerimento <code>💡</code> / <code>Suggerimento:</code></span>
-    </footer>
   </div>
 
   <div id="auth-modal" class="auth-modal" hidden aria-hidden="true">

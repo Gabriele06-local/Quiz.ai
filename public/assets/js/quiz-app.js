@@ -69,6 +69,20 @@ let saveSessionTimer = null;
 /** Evita duplicati in lista quando più chiamate a renderHistoryList si sovrappongono (auth + load). */
 let historyListRenderGeneration = 0;
 
+const PREF_SHUFFLE = "quiz-ai-pref-shuffle";
+const PREF_TIMER_ON = "quiz-ai-pref-timer-on";
+const PREF_TIMER_MODE = "quiz-ai-pref-timer-mode";
+const PREF_TIMER_SEC = "quiz-ai-pref-timer-sec";
+
+/** @type {ReturnType<typeof setInterval> | null} */
+let quizTimerIntervalId = null;
+/** @type {"off" | "question" | "quiz"} */
+let sessionTimerMode = "off";
+let sessionTimerSeconds = 60;
+let quizWideTimerStarted = false;
+let questionDeadlineMs = 0;
+let quizWideDeadlineMs = 0;
+
 function loadStoredProgress() {
   try {
     return localStorage.getItem(PROGRESS_KEY);
@@ -217,6 +231,9 @@ function restoreResultsPanel(p) {
 function restoreFromPayload(p) {
   applyProgressData(p);
   if (p.panel === "quiz") {
+    sessionTimerMode = "off";
+    quizWideTimerStarted = false;
+    clearQuizTimerVisual();
     showPanel("quiz");
     if (p.answered && p.selected && typeof p.selected === "string") {
       renderQuestion({
@@ -266,6 +283,8 @@ function tryRestoreOnLoad() {
 }
 
 function abandonSession() {
+  sessionTimerMode = "off";
+  quizWideTimerStarted = false;
   fullQuiz = [];
   activeQuiz = [];
   index = 0;
@@ -754,7 +773,175 @@ async function renderHistoryList() {
   if (rootRows.length > 0) appendRootDetailsBlock(ul, rootRows, folderOpts, folderGroups);
 }
 
+function formatTimerRemain(ms) {
+  if (ms <= 0) return "0:00";
+  const s = Math.ceil(ms / 1000);
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return m > 0 ? `${m}:${String(r).padStart(2, "0")}` : `${s}s`;
+}
+
+function clearQuizTimerVisual() {
+  if (quizTimerIntervalId) {
+    clearInterval(quizTimerIntervalId);
+    quizTimerIntervalId = null;
+  }
+  const el = $("quiz-timer");
+  if (el) {
+    el.hidden = true;
+    el.textContent = "";
+    el.classList.remove("quiz-timer--warn", "quiz-timer--expired");
+  }
+}
+
+function updateQuizTimerLabel() {
+  const el = $("quiz-timer");
+  if (!el || sessionTimerMode === "off") return;
+  const deadline = sessionTimerMode === "question" ? questionDeadlineMs : quizWideDeadlineMs;
+  const left = deadline - Date.now();
+  const prefix = sessionTimerMode === "question" ? "Domanda" : "Quiz";
+  if (left <= 0) {
+    el.textContent = `${prefix} · 0:00`;
+    el.classList.add("quiz-timer--expired");
+    el.classList.remove("quiz-timer--warn");
+    return;
+  }
+  el.classList.remove("quiz-timer--expired");
+  if (left < 10000) el.classList.add("quiz-timer--warn");
+  else el.classList.remove("quiz-timer--warn");
+  el.textContent = `${prefix} · ${formatTimerRemain(left)}`;
+}
+
+function beginQuizTimerForCurrentQuestion() {
+  clearQuizTimerVisual();
+  if (sessionTimerMode === "off") return;
+  if (sessionTimerMode === "question") {
+    questionDeadlineMs = Date.now() + sessionTimerSeconds * 1000;
+  } else {
+    if (!quizWideTimerStarted) {
+      quizWideTimerStarted = true;
+      quizWideDeadlineMs = Date.now() + sessionTimerSeconds * 1000;
+    }
+  }
+  const el = $("quiz-timer");
+  if (el) el.hidden = false;
+  quizTimerIntervalId = setInterval(updateQuizTimerLabel, 250);
+  updateQuizTimerLabel();
+}
+
+function readTimerFromUI() {
+  const on = $("chk-timer")?.checked;
+  const modeEl = $("timer-mode");
+  const secEl = $("timer-seconds");
+  if (!on) return { mode: /** @type {"off"} */ ("off"), seconds: 60 };
+  const mode = modeEl?.value === "quiz" ? /** @type {"quiz"} */ ("quiz") : /** @type {"question"} */ ("question");
+  const sec = Math.max(15, Math.min(7200, Number(secEl?.value) || 60));
+  return { mode, seconds: sec };
+}
+
+function applySessionTimerForNewQuiz() {
+  const t = readTimerFromUI();
+  sessionTimerMode = t.mode;
+  sessionTimerSeconds = t.seconds;
+  quizWideTimerStarted = false;
+}
+
+function setTimerInputsEnabled(on) {
+  const m = $("timer-mode");
+  const s = $("timer-seconds");
+  if (m) m.disabled = !on;
+  if (s) s.disabled = !on;
+}
+
+function updateTimerSecondsLabel() {
+  const mode = $("timer-mode")?.value;
+  const lab = $("timer-seconds-label");
+  if (lab) lab.textContent = mode === "quiz" ? "Secondi totali" : "Secondi / domanda";
+}
+
+function loadQuizPrefs() {
+  try {
+    if (localStorage.getItem(PREF_SHUFFLE) === "1") {
+      const c = $("chk-shuffle");
+      if (c) c.checked = true;
+    }
+    if (localStorage.getItem(PREF_TIMER_ON) === "1") {
+      const ct = $("chk-timer");
+      if (ct) ct.checked = true;
+    }
+    const tm = localStorage.getItem(PREF_TIMER_MODE);
+    const sel = $("timer-mode");
+    if (sel && (tm === "question" || tm === "quiz")) sel.value = tm;
+    const ts = localStorage.getItem(PREF_TIMER_SEC);
+    const num = $("timer-seconds");
+    if (num && ts) {
+      const n = parseInt(ts, 10);
+      if (!Number.isNaN(n)) num.value = String(Math.max(15, Math.min(7200, n)));
+    }
+  } catch (e) {}
+  const on = $("chk-timer")?.checked ?? false;
+  setTimerInputsEnabled(on);
+  updateTimerSecondsLabel();
+}
+
+function saveQuizPrefs() {
+  try {
+    localStorage.setItem(PREF_SHUFFLE, $("chk-shuffle")?.checked ? "1" : "0");
+    localStorage.setItem(PREF_TIMER_ON, $("chk-timer")?.checked ? "1" : "0");
+    localStorage.setItem(PREF_TIMER_MODE, $("timer-mode")?.value || "question");
+    localStorage.setItem(PREF_TIMER_SEC, String($("timer-seconds")?.value || "60"));
+  } catch (e) {}
+}
+
+function buildResultsSummaryText() {
+  const score = ($("results-score")?.textContent || "").trim();
+  const detail = ($("results-detail")?.textContent || "").trim();
+  const lines = ["Quiz.ai — Riepilogo", "", score, detail, ""];
+  if (!$("wrong-list")?.hidden && wrongBank.length > 0) {
+    lines.push("Domande da ripassare:");
+    wrongBank.forEach((q, i) => {
+      const stem = q.stem.replace(/\s+/g, " ").trim();
+      lines.push(`${i + 1}. ${stem}`);
+      const opt = q.options[q.correct];
+      lines.push(`   Risposta corretta: ${q.correct}) ${opt || ""}`);
+    });
+  }
+  return lines.join("\n");
+}
+
+/**
+ * @param {KeyboardEvent} e
+ */
+function onQuizKeyboardShortcut(e) {
+  if ($("panel-quiz").hidden) return;
+  const modal = $("auth-modal");
+  if (modal && !modal.hidden) return;
+  const t = e.target;
+  if (t instanceof HTMLTextAreaElement && t.id === "arg-text") return;
+
+  if (e.key === "Enter") {
+    if (t instanceof HTMLButtonElement || t instanceof HTMLAnchorElement) return;
+    const sub = $("btn-submit");
+    if (sub && !sub.disabled) {
+      e.preventDefault();
+      sub.click();
+    }
+    return;
+  }
+
+  if (answered) return;
+
+  const map = { "1": "A", "2": "B", "3": "C", "4": "D" };
+  let k = map[e.key];
+  if (!k && e.key.length === 1 && /[a-d]/i.test(e.key)) k = e.key.toUpperCase();
+  if (!k || !["A", "B", "C", "D"].includes(k)) return;
+  e.preventDefault();
+  const btn = $("options")?.querySelector(`.option[data-key="${k}"]`);
+  if (btn instanceof HTMLButtonElement && !btn.disabled) btn.click();
+}
+
 function showPanel(name) {
+  if (name === "input" || name === "results") clearQuizTimerVisual();
   $("panel-input").hidden = name !== "input";
   $("panel-quiz").hidden = name !== "quiz";
   $("panel-results").hidden = name !== "results";
@@ -808,6 +995,7 @@ function renderQuestion(restore) {
   });
 
   if (restore && restore.answered) {
+    clearQuizTimerVisual();
     applyAnsweredUI(q, restore.selected, restore.argText, restore.hintVisible);
     return;
   }
@@ -824,6 +1012,7 @@ function renderQuestion(restore) {
   $("btn-hint").textContent = "Mostra suggerimento";
 
   setProgress();
+  beginQuizTimerForCurrentQuestion();
 }
 
 function argomentazioneFeedback(ok, argText) {
@@ -963,9 +1152,11 @@ function startFromText(text) {
     return;
   }
   $("parse-error").hidden = true;
+  applySessionTimerForNewQuiz();
   savedRawText = text;
   fullQuiz = parsed;
   activeQuiz = parsed.slice();
+  if ($("chk-shuffle")?.checked) activeQuiz = shuffle(activeQuiz);
   wrongBank = [];
   index = 0;
   isReviewMode = false;
@@ -989,6 +1180,19 @@ function shuffle(arr) {
 }
 
   Q.initQuizApp = function initQuizApp() {
+  loadQuizPrefs();
+  $("chk-shuffle")?.addEventListener("change", saveQuizPrefs);
+  $("chk-timer")?.addEventListener("change", () => {
+    setTimerInputsEnabled(!!$("chk-timer")?.checked);
+    saveQuizPrefs();
+  });
+  $("timer-mode")?.addEventListener("change", () => {
+    updateTimerSecondsLabel();
+    saveQuizPrefs();
+  });
+  $("timer-seconds")?.addEventListener("change", saveQuizPrefs);
+  document.addEventListener("keydown", onQuizKeyboardShortcut);
+
   $("btn-parse").addEventListener("click", () => {
     startFromText($("raw-text").value);
   });
@@ -1046,6 +1250,7 @@ function shuffle(arr) {
 
   $("btn-review").addEventListener("click", () => {
     if (wrongBank.length === 0) return;
+    applySessionTimerForNewQuiz();
     activeQuiz = shuffle(wrongBank.map((q) => ({ ...q })));
     index = 0;
     isReviewMode = true;
@@ -1056,8 +1261,14 @@ function shuffle(arr) {
     saveSessionSoon();
   });
 
+  $("btn-results-home").addEventListener("click", () => {
+    abandonSession();
+  });
+
   $("btn-retry-all").addEventListener("click", () => {
+    applySessionTimerForNewQuiz();
     activeQuiz = fullQuiz.slice();
+    if ($("chk-shuffle")?.checked) activeQuiz = shuffle(activeQuiz);
     index = 0;
     wrongBank = [];
     isReviewMode = false;
@@ -1103,6 +1314,32 @@ function shuffle(arr) {
       window.clearTimeout(llmCopyTimer);
       llmCopyTimer = window.setTimeout(() => {
         llmCopyFb.hidden = true;
+      }, 2000);
+    }
+  });
+
+  const summaryFb = $("summary-copy-feedback");
+  let summaryCopyTimer = 0;
+  $("btn-copy-summary")?.addEventListener("click", async () => {
+    const text = buildResultsSummaryText();
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (e) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+      } catch (err) {}
+      ta.remove();
+    }
+    if (summaryFb) {
+      summaryFb.hidden = false;
+      window.clearTimeout(summaryCopyTimer);
+      summaryCopyTimer = window.setTimeout(() => {
+        summaryFb.hidden = true;
       }, 2000);
     }
   });
