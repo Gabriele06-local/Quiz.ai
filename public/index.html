@@ -114,6 +114,17 @@
               </div>
             </div>
             <div class="input-quiz-prefs" aria-label="Opzioni quiz">
+              <label class="label label-inline" for="study-format">Formato di studio</label>
+              <select id="study-format" class="select-study-format" aria-describedby="study-format-hint">
+                <option value="mcq" selected>Scelta multipla (classico)</option>
+                <option value="fill_bank">Completamento — con parole suggerite</option>
+                <option value="fill_open">Completamento — scrivi tu</option>
+                <option value="match">Abbina descrizione ↔ risposta</option>
+                <option value="flash">Flashcard</option>
+              </select>
+              <p id="study-format-hint" class="study-format-hint">
+                Stesso testo quiz: cambia solo come ripassi. Quando cambi formato, l’area «Testo del quiz» si aggiorna con un esempio che mostra come sfruttare quel modo di studio. Abbinamenti a turni di 4; flashcard: giudichi tu se ricordavi.
+              </p>
               <label class="pref-check">
                 <input type="checkbox" id="chk-shuffle" />
                 <span>Mischia domande</span>
@@ -150,67 +161,57 @@
             <div class="llm-prompt-card">
               <h3 class="llm-prompt-heading" id="llm-prompt-heading">Prompt per l’IA</h3>
               <p class="llm-prompt-lead">
-                Copialo in ChatGPT, Claude, Gemini, ecc.: chiedi di restituire <strong>solo</strong> testo grezzo nel formato che legge Quiz.ai.
+                Scegli il formato di studio che userai in Quiz.ai e apri <strong>una</strong> tendina alla volta: dentro trovi un prompt diverso (stesse regole parser, ma obiettivo ed <strong>esempi</strong> ad hoc). Copialo in ChatGPT, Claude, Gemini, ecc.: l’IA deve restituire <strong>solo</strong> testo grezzo.
               </p>
-              <label class="label" for="llm-prompt-text">Testo da incollare nell’LLM</label>
-              <textarea id="llm-prompt-text" class="textarea llm-prompt-textarea" readonly rows="20" spellcheck="false">Devi produrre un quiz a scelta multipla in ITALIANO, come testo semplice (niente JSON, niente HTML). L’output sarà incollato nell’app Quiz.ai che accetta SOLO questo schema.
-
-REGOLE OBBLIGATORIE
-
-1) OGNI domanda deve iniziare con una riga che, dopo eventuali cancelletti Markdown (# … ###), contenga un numero e poi punto o parentesi e il testo. Esempi validi:
-   - 1. Enunciato della domanda
-   - 2) Enunciato della domanda
-   - ### **3. Enunciato della domanda**
-   Righe successive (prima delle opzioni) possono continuare l’enunciato.
-
-2) Subito dopo l’enunciato servono ESATTAMENTE quattro opzioni, lettere A B C D, ciascuna su una riga che inizia con la lettera e poi ), . oppure : e uno spazio:
-   A) …
-   B) …
-   C) …
-   D) …
-
-3) Subito dopo le quattro opzioni, UNA sola riga con la risposta corretta, con una di queste forme (lettera A–D):
-   Risposta: C
-   Risposta corretta: C
-   ✅ Risposta: C
-   (Markdown tipo ** sulla riga va bene.)
-
-4) Opzionale, dopo la risposta: suggerimento su una o più righe che iniziano con:
-   Suggerimento: …
-   oppure 💡 Suggerimento: …
-   oppure Hint: …
-
-5) Righe che sono solo trattini/asterischi (es. --- o ***) sono separatori e vanno ignorate nel contenuto.
-
-6) Non passare alla domanda successiva senza aver messo tutte e quattro le opzioni e la riga “Risposta: X” per quella domanda.
-
-ESEMPIO (un blocco; replicare lo stesso schema per le altre domande):
-
-1. Qual è la capitale d’Italia?
-
-A) Milano
-B) Roma
-C) Napoli
-D) Torino
-
-Risposta: B
-
----
-
-2. Quale di questi è un protocollo di livello trasporto?
-
-A) HTTP
-B) TCP
-C) IP
-D) Ethernet
-
-Risposta: B
-Suggerimento: TCP è orientato alla connessione; IP è di rete.
-
-Restituisci solo il testo del quiz così formattato, senza commenti introduttivi o finali.</textarea>
-              <div class="llm-prompt-actions">
-                <button type="button" id="btn-copy-llm-prompt" class="btn btn-primary btn-small">Copia negli appunti</button>
-                <span id="llm-copy-feedback" class="llm-copy-feedback" hidden>Copiato</span>
+              <div class="llm-prompt-accordion" role="region" aria-label="Prompt per formato di studio">
+                <details class="llm-prompt-disclosure">
+                  <summary class="llm-prompt-summary">Scelta multipla (classico)</summary>
+                  <div class="llm-prompt-disclosure-body">
+                    <textarea id="llm-prompt-mcq" class="textarea llm-prompt-textarea" readonly rows="16" spellcheck="false" aria-label="Prompt LLM per scelta multipla"></textarea>
+                    <div class="llm-prompt-disclosure-actions">
+                      <button type="button" class="btn btn-primary btn-small btn-copy-llm-prompt-disclosure" data-llm-target="llm-prompt-mcq">Copia questo prompt</button>
+                    </div>
+                  </div>
+                </details>
+                <details class="llm-prompt-disclosure">
+                  <summary class="llm-prompt-summary">Completamento — con parole suggerite</summary>
+                  <div class="llm-prompt-disclosure-body">
+                    <textarea id="llm-prompt-fill-bank" class="textarea llm-prompt-textarea" readonly rows="16" spellcheck="false" aria-label="Prompt LLM per completamento con banca parole"></textarea>
+                    <div class="llm-prompt-disclosure-actions">
+                      <button type="button" class="btn btn-primary btn-small btn-copy-llm-prompt-disclosure" data-llm-target="llm-prompt-fill-bank">Copia questo prompt</button>
+                    </div>
+                  </div>
+                </details>
+                <details class="llm-prompt-disclosure">
+                  <summary class="llm-prompt-summary">Completamento — scrivi tu</summary>
+                  <div class="llm-prompt-disclosure-body">
+                    <textarea id="llm-prompt-fill-open" class="textarea llm-prompt-textarea" readonly rows="16" spellcheck="false" aria-label="Prompt LLM per completamento aperto"></textarea>
+                    <div class="llm-prompt-disclosure-actions">
+                      <button type="button" class="btn btn-primary btn-small btn-copy-llm-prompt-disclosure" data-llm-target="llm-prompt-fill-open">Copia questo prompt</button>
+                    </div>
+                  </div>
+                </details>
+                <details class="llm-prompt-disclosure">
+                  <summary class="llm-prompt-summary">Abbina descrizione ↔ risposta</summary>
+                  <div class="llm-prompt-disclosure-body">
+                    <textarea id="llm-prompt-match" class="textarea llm-prompt-textarea" readonly rows="16" spellcheck="false" aria-label="Prompt LLM per abbinamenti"></textarea>
+                    <div class="llm-prompt-disclosure-actions">
+                      <button type="button" class="btn btn-primary btn-small btn-copy-llm-prompt-disclosure" data-llm-target="llm-prompt-match">Copia questo prompt</button>
+                    </div>
+                  </div>
+                </details>
+                <details class="llm-prompt-disclosure">
+                  <summary class="llm-prompt-summary">Flashcard</summary>
+                  <div class="llm-prompt-disclosure-body">
+                    <textarea id="llm-prompt-flash" class="textarea llm-prompt-textarea" readonly rows="16" spellcheck="false" aria-label="Prompt LLM per flashcard"></textarea>
+                    <div class="llm-prompt-disclosure-actions">
+                      <button type="button" class="btn btn-primary btn-small btn-copy-llm-prompt-disclosure" data-llm-target="llm-prompt-flash">Copia questo prompt</button>
+                    </div>
+                  </div>
+                </details>
+              </div>
+              <div class="llm-prompt-actions llm-prompt-actions-global">
+                <span id="llm-copy-feedback" class="llm-copy-feedback" hidden>Copiato negli appunti</span>
               </div>
             </div>
           </aside>
@@ -238,31 +239,107 @@ Restituisci solo il testo del quiz così formattato, senza commenti introduttivi
             </div>
             <span id="progress-label" class="progress-label">0 / 0</span>
           </div>
-          <span id="quiz-timer" class="quiz-timer" hidden aria-live="polite"></span>
-          <button type="button" id="btn-reset" class="btn btn-ghost btn-small">Nuovo testo</button>
+          <div class="quiz-top-aside">
+            <div class="quiz-top-row">
+              <span id="quiz-timer" class="quiz-timer" hidden aria-live="polite"></span>
+              <div class="quiz-top-actions">
+                <button type="button" id="btn-save-quiz-cloud" class="btn btn-ghost btn-small" hidden title="Salva il testo completo del quiz nel cloud (anche a metà sessione)">
+                  Salva nel cloud
+                </button>
+                <button type="button" id="btn-reset" class="btn btn-ghost btn-small">Nuovo testo</button>
+              </div>
+            </div>
+            <p id="quiz-cloud-save-feedback" class="quiz-cloud-save-feedback" role="status" hidden></p>
+          </div>
         </div>
 
-        <article class="question-card">
-          <p id="question-meta" class="question-meta"></p>
-          <p class="quiz-keyboard-hint" id="quiz-keyboard-hint">
-            Tasti: <kbd>1</kbd>–<kbd>4</kbd> o <kbd>A</kbd>–<kbd>D</kbd> per scegliere, <kbd>Invio</kbd> per confermare (non mentre scrivi nell’argomentazione).
-          </p>
-          <h2 id="question-text" class="question-text"></h2>
-          <div id="options" class="options"></div>
+        <div id="quiz-body-mcq" class="quiz-body-mode">
+          <article class="question-card">
+            <p id="question-meta" class="question-meta"></p>
+            <p class="quiz-keyboard-hint" id="quiz-keyboard-hint">
+              Tasti: <kbd>1</kbd>–<kbd>4</kbd> o <kbd>A</kbd>–<kbd>D</kbd> per scegliere, <kbd>Invio</kbd> per confermare (non mentre scrivi nell’argomentazione).
+            </p>
+            <h2 id="question-text" class="question-text"></h2>
+            <div id="options" class="options"></div>
 
-          <div class="argomentazione">
-            <label class="label label-inline" for="arg-text">Argomentazione (opzionale)</label>
-            <textarea id="arg-text" class="textarea textarea-compact" rows="3" placeholder="Spiega perché hai scelto questa risposta…"></textarea>
-          </div>
+            <div class="argomentazione">
+              <label class="label label-inline" for="arg-text">Argomentazione (opzionale)</label>
+              <textarea id="arg-text" class="textarea textarea-compact" rows="3" placeholder="Spiega perché hai scelto questa risposta…"></textarea>
+            </div>
 
-          <div class="quiz-actions">
-            <button type="button" id="btn-submit" class="btn btn-primary" disabled>Conferma risposta</button>
-            <button type="button" id="btn-hint" class="btn btn-ghost" hidden>Mostra suggerimento</button>
-          </div>
+            <div class="quiz-actions">
+              <button type="button" id="btn-submit" class="btn btn-primary" disabled>Conferma risposta</button>
+              <button type="button" id="btn-hint" class="btn btn-ghost" hidden>Mostra suggerimento</button>
+            </div>
 
-          <div id="hint-box" class="hint-box" hidden></div>
-          <div id="feedback" class="feedback" hidden></div>
-        </article>
+            <div id="hint-box" class="hint-box" hidden></div>
+            <div id="feedback" class="feedback" hidden></div>
+          </article>
+        </div>
+
+        <div id="quiz-body-fill-bank" class="quiz-body-mode" hidden>
+          <article class="question-card study-card">
+            <p id="fill-bank-meta" class="question-meta"></p>
+            <p class="study-lead">Scegli la risposta corretta tra le opzioni (se possibile, una parola nel testo è sostituita da un buco).</p>
+            <div id="fill-bank-stem" class="question-text study-stem-rich"></div>
+            <div id="fill-bank-chips" class="study-chips" role="group" aria-label="Opzioni"></div>
+            <div class="quiz-actions">
+              <button type="button" id="btn-fill-bank-confirm" class="btn btn-primary" disabled>Conferma</button>
+            </div>
+            <div id="fill-bank-feedback" class="feedback" hidden></div>
+          </article>
+        </div>
+
+        <div id="quiz-body-fill-open" class="quiz-body-mode" hidden>
+          <article class="question-card study-card">
+            <p id="fill-open-meta" class="question-meta"></p>
+            <p class="study-lead">Scrivi la risposta a parole tue (confronto tollerante con la soluzione).</p>
+            <div id="fill-open-stem" class="question-text"></div>
+            <label class="label" for="fill-open-input">La tua risposta</label>
+            <input type="text" id="fill-open-input" class="input study-input-line" autocomplete="off" />
+            <div class="quiz-actions">
+              <button type="button" id="btn-fill-open-confirm" class="btn btn-primary">Conferma</button>
+            </div>
+            <div id="fill-open-feedback" class="feedback" hidden></div>
+          </article>
+        </div>
+
+        <div id="quiz-body-match" class="quiz-body-mode" hidden>
+          <article class="question-card study-card">
+            <p id="match-meta" class="question-meta"></p>
+            <p class="study-lead">Clic prima una domanda a sinistra, poi la risposta a destra che le corrisponde.</p>
+            <div class="match-columns">
+              <div class="match-col">
+                <h3 class="match-col-title">Domanda</h3>
+                <div id="match-col-left" class="match-list"></div>
+              </div>
+              <div class="match-col">
+                <h3 class="match-col-title">Risposta</h3>
+                <div id="match-col-right" class="match-list"></div>
+              </div>
+            </div>
+            <div id="match-feedback" class="feedback" hidden></div>
+          </article>
+        </div>
+
+        <div id="quiz-body-flash" class="quiz-body-mode" hidden>
+          <article class="question-card study-card flash-card-article">
+            <p id="flash-meta" class="question-meta"></p>
+            <div class="flash-card-surface" id="flash-card-surface">
+              <div id="flash-front" class="flash-front question-text"></div>
+              <div id="flash-back" class="flash-back" hidden>
+                <p class="flash-back-kicker">Risposta corretta</p>
+                <p id="flash-back-text" class="flash-back-main"></p>
+                <p id="flash-back-hint" class="flash-hint" hidden></p>
+              </div>
+            </div>
+            <div class="quiz-actions flash-actions">
+              <button type="button" id="flash-btn-show" class="btn btn-primary">Mostra risposta</button>
+              <button type="button" id="flash-btn-forgot" class="btn btn-ghost" hidden>Non ricordavo</button>
+              <button type="button" id="flash-btn-knew" class="btn btn-primary" hidden>Ricordavo · avanti</button>
+            </div>
+          </article>
+        </div>
       </section>
 
       <section id="panel-results" class="panel panel-results" hidden>
@@ -351,6 +428,8 @@ Restituisci solo il testo del quiz così formattato, senza commenti introduttivi
   <script src="supabase-config.js" defer onerror="this.remove()"></script>
   <script src="assets/js/dom.js" defer></script>
   <script src="assets/js/parser.js" defer></script>
+  <script src="assets/js/study-modes.js" defer></script>
+  <script src="assets/js/llm-prompts-data.js" defer></script>
   <script src="assets/js/supabase-client.js" defer></script>
   <script src="assets/js/theme.js" defer></script>
   <script src="assets/js/auth-ui.js" defer></script>

@@ -4,6 +4,7 @@
   const parseQuizText = Q.parseQuizText;
   const stripMd = Q.stripMd;
   const getSupabase = Q.getSupabase;
+  const StudyModeUtils = Q.StudyModeUtils;
 
   const PROGRESS_KEY = "quiz-ai-progress";
 const STORAGE_VERSION = 3;
@@ -12,7 +13,8 @@ function isSupportedStorageVersion(v) {
   return v === 2 || v === 3;
 }
 
-const SAMPLE = `1. Qual è la differenza principale tra informazione e segnale?
+const STUDY_FORMAT_SAMPLES = {
+  mcq: `1. Qual è la differenza principale tra informazione e segnale?
 
 A) Non c'è differenza
 B) Il segnale è il contenuto, l'informazione è il mezzo
@@ -55,7 +57,163 @@ B) La variazione del ritardo nel tempo
 C) La velocità di trasmissione
 D) Il numero di errori
 
-✅ Risposta: B`;
+✅ Risposta: B`,
+
+  fill_bank: `Esempio per «Completamento con parole suggerite»: nel testo della domanda deve comparire una parola (o segmento) identico al testo dell’opzione corretta, così l’app può mostrare un buco al suo posto.
+
+---
+
+1. Nei sistemi a pacchetto, il protocollo TCP lavora spesso in coppia con IP e offre trasferimento affidabile.
+
+A) UDP
+B) TCP
+C) ICMP
+D) ARP
+
+Risposta: B
+
+---
+
+2. La capitale politica d’Italia è Roma; Milano è invece nota come polo economico.
+
+A) Milano
+B) Roma
+C) Firenze
+D) Napoli
+
+Risposta: B
+
+---
+
+3. In fisica, la frequenza si misura in Hertz, cioè cicli al secondo.
+
+A) Watt
+B) Volt
+C) Hertz
+D) Pascal
+
+Risposta: C`,
+
+  fill_open: `Esempio per «Completamento — scrivi tu»: tieni le risposte corrette brevi (numero, nome, parola chiave) così il confronto con quello che digiti è chiaro.
+
+---
+
+1. Quanti bit ha un indirizzo IPv4?
+
+A) 16
+B) 32
+C) 64
+D) 128
+
+Risposta: B
+
+---
+
+2. Chi dipinse la Gioconda?
+
+A) Michelangelo
+B) Leonardo
+C) Raffaello
+D) Caravaggio
+
+Risposta: B
+
+---
+
+3. In quale anno cadde l’Impero romano d’Occidente (data convenzionale)?
+
+A) 376
+B) 476
+C) 576
+D) 676
+
+Risposta: B`,
+
+  match: `Esempio per «Abbina descrizione ↔ risposta»: enunciati lunghi e autosufficienti; come risposta corretta usa un’etichetta breve e diversa per ogni domanda (così a destra non compaiono duplicati ambigui).
+
+---
+
+1. Metodo degli array in JavaScript che crea un nuovo array contenente solo gli elementi che superano una condizione passata come funzione.
+
+A) slice
+B) filter
+C) sort
+D) join
+
+Risposta: B
+
+---
+
+2. Metodo che aggiunge uno o più elementi alla fine dell’array modificando lo stesso array.
+
+A) shift
+B) pop
+C) push
+D) unshift
+
+Risposta: C
+
+---
+
+3. Struttura dati lineare in cui il primo elemento inserito è anche il primo uscito (First In, First Out).
+
+A) stack
+B) heap
+C) queue
+D) tree
+
+Risposta: C`,
+
+  flash: `Esempio per «Flashcard»: domande secche sul fronte; sul retro vedi lettera + risposta e, se c’è, un suggerimento per fissare il concetto.
+
+---
+
+1. Cos’è la latenza in una rete di telecomunicazioni?
+
+A) Solo la velocità del clock della CPU
+B) Il tempo impiegato da un messaggio per andare da sorgente a destinazione
+C) Il numero di pixel del monitor
+D) La capacità del disco rigido
+
+Risposta: B
+Suggerimento: non è throughput: è un ritardo temporale.
+
+---
+
+2. Cosa indica il BER?
+
+A) La banda massima del canale
+B) La frequenza di errore sui bit trasmessi
+C) Il numero di router attraversati
+D) La dimensione massima del pacchetto
+
+Risposta: B
+💡 Suggerimento: Bit Error Rate.
+
+---
+
+3. Nel modello OSI, a quale livello si colloca tipicamente HTTP?
+
+A) Trasporto
+B) Applicazione
+C) Rete
+D) Fisico
+
+Risposta: B
+Hint: pensa a browser e API REST.`,
+};
+
+/**
+ * @param {string} [fmt]
+ */
+function getStudyFormatSampleText(fmt) {
+  const v = fmt || readStudyFormatFromUI();
+  if (v === "fill_bank" || v === "fill_open" || v === "match" || v === "flash") {
+    return STUDY_FORMAT_SAMPLES[v];
+  }
+  return STUDY_FORMAT_SAMPLES.mcq;
+}
+
 
 /** @type {{ stem: string, options: Record<string, string>, correct: string, hint: string, sourceIndex: number }[]} */
 let fullQuiz = [];
@@ -92,6 +250,21 @@ let sessionTimerSeconds = 60;
 let quizWideTimerStarted = false;
 let questionDeadlineMs = 0;
 let quizWideDeadlineMs = 0;
+
+/** @type {"mcq"|"fill_bank"|"fill_open"|"match"|"flash"} */
+let studyFormat = "mcq";
+const MATCH_BATCH = 4;
+let matchBatchStart = 0;
+/** @type {Set<number>} */
+let matchPairedSi = new Set();
+/** @type {number | null} */
+let matchPickLeftSi = null;
+/** @type {Record<number, number>} */
+let matchErrorsBySi = {};
+let matchCumulativePaired = 0;
+let flashShowBack = false;
+/** @type {string | null} */
+let fillBankSelectedKey = null;
 
 function loadStoredProgress() {
   try {
@@ -146,6 +319,7 @@ function buildProgressPayload() {
 }
 
 function saveSessionState() {
+  if (studyFormat !== "mcq") return;
   const onInput = !$("panel-input").hidden;
   if (onInput && fullQuiz.length === 0) {
     clearStoredProgress();
@@ -260,6 +434,7 @@ function restoreResultsPanel(p) {
 function restoreFromPayload(p) {
   applyProgressData(p);
   if (p.panel === "quiz") {
+    studyFormat = "mcq";
     sessionTimerMode = "off";
     quizWideTimerStarted = false;
     clearQuizTimerVisual();
@@ -317,6 +492,11 @@ function abandonSession() {
   examMode = false;
   attemptContext = null;
   reviewSessionTotal = 0;
+  studyFormat = "mcq";
+  resetMatchStudyState();
+  flashShowBack = false;
+  fillBankSelectedKey = null;
+  syncQuizBodies("mcq");
   fullQuiz = [];
   activeQuiz = [];
   index = 0;
@@ -370,34 +550,76 @@ function hideHistorySaveError() {
   if (el) el.hidden = true;
 }
 
-async function addHistoryEntry(rawText) {
-  hideHistorySaveError();
+/**
+ * Inserisce una riga in saved_quizzes (cloud). Usato da home e da pannello quiz.
+ * @param {string} rawText
+ * @returns {Promise<{ ok: true } | { ok: false, message: string }>}
+ */
+async function insertSavedQuizRow(rawText) {
+  const trimmed = (rawText || "").trim();
+  if (!trimmed) return { ok: false, message: "Nessun testo da salvare." };
   const sb = getSupabase();
-  if (!sb) {
-    showHistorySaveError("Account cloud non configurato.");
-    return;
-  }
+  if (!sb) return { ok: false, message: "Account cloud non configurato." };
   const {
     data: { session },
   } = await sb.auth.getSession();
-  if (!session) {
-    showHistorySaveError("Accedi per salvare lo storico nel database.");
-    return;
-  }
-  const n = fullQuiz.length || parseQuizText(rawText).length;
-  const title = makeTitleFromRaw(rawText);
+  if (!session) return { ok: false, message: "Accedi per salvare nel database." };
+  const n = fullQuiz.length || parseQuizText(trimmed).length;
+  if (n === 0) return { ok: false, message: "Non ci sono domande riconosciute nel testo." };
+  const title = makeTitleFromRaw(trimmed);
   const { error } = await sb.from("saved_quizzes").insert({
     user_id: session.user.id,
     folder_id: null,
     title,
-    raw_text: rawText,
+    raw_text: trimmed,
     question_count: n,
   });
-  if (error) {
-    showHistorySaveError(error.message || "Salvataggio non riuscito.");
+  if (error) return { ok: false, message: error.message || "Salvataggio non riuscito." };
+  return { ok: true };
+}
+
+async function addHistoryEntry(rawText) {
+  hideHistorySaveError();
+  const r = await insertSavedQuizRow(rawText);
+  if (!r.ok) {
+    showHistorySaveError(r.message);
     return;
   }
   await renderHistoryList();
+}
+
+let quizCloudSaveFeedbackTimer = 0;
+function showQuizCloudSaveFeedback(message, isError) {
+  const el = $("quiz-cloud-save-feedback");
+  if (!el) return;
+  el.textContent = message;
+  el.hidden = false;
+  el.classList.toggle("quiz-cloud-save-feedback--error", !!isError);
+  window.clearTimeout(quizCloudSaveFeedbackTimer);
+  quizCloudSaveFeedbackTimer = window.setTimeout(() => {
+    el.hidden = true;
+    el.textContent = "";
+    el.classList.remove("quiz-cloud-save-feedback--error");
+  }, 3200);
+}
+
+function syncQuizCloudSaveButton() {
+  const btn = $("btn-save-quiz-cloud");
+  if (!btn) return;
+  const onQuiz = !$("panel-quiz").hidden;
+  const hasQuiz = fullQuiz.length > 0;
+  btn.hidden = !(onQuiz && hasQuiz);
+}
+
+async function saveCurrentQuizToCloudFromPanel() {
+  const raw = (savedRawText || $("raw-text")?.value || "").trim();
+  const r = await insertSavedQuizRow(raw);
+  if (!r.ok) {
+    showQuizCloudSaveFeedback(r.message, true);
+    return;
+  }
+  await renderHistoryList();
+  showQuizCloudSaveFeedback("Quiz salvato negli appunti cloud. Puoi continuare il test.", false);
 }
 
 async function removeHistoryEntry(id) {
@@ -958,6 +1180,26 @@ function onQuizKeyboardShortcut(e) {
 
   if (e.key === "Enter") {
     if (t instanceof HTMLButtonElement || t instanceof HTMLAnchorElement) return;
+    if (studyFormat === "fill_open" && t instanceof HTMLInputElement && t.id === "fill-open-input") {
+      e.preventDefault();
+      handleFillOpenConfirm();
+      return;
+    }
+    if (studyFormat === "fill_bank") {
+      const bb = $("btn-fill-bank-confirm");
+      if (bb && !bb.disabled) {
+        e.preventDefault();
+        bb.click();
+      }
+      return;
+    }
+    if (studyFormat === "flash") {
+      e.preventDefault();
+      if (!flashShowBack) handleFlashShow();
+      else handleFlashRate(true);
+      return;
+    }
+    if (studyFormat !== "mcq") return;
     const sub = $("btn-submit");
     if (sub && !sub.disabled) {
       e.preventDefault();
@@ -966,6 +1208,7 @@ function onQuizKeyboardShortcut(e) {
     return;
   }
 
+  if (studyFormat !== "mcq") return;
   if (answered) return;
 
   const map = { "1": "A", "2": "B", "3": "C", "4": "D" };
@@ -983,16 +1226,463 @@ function showPanel(name) {
   $("panel-quiz").hidden = name !== "quiz";
   $("panel-results").hidden = name !== "results";
   updateResumeBanner();
+  syncQuizCloudSaveButton();
+}
+
+function resetMatchStudyState() {
+  matchBatchStart = 0;
+  matchPairedSi = new Set();
+  matchPickLeftSi = null;
+  matchErrorsBySi = {};
+  matchCumulativePaired = 0;
+}
+
+function syncQuizBodies(mode) {
+  const map = {
+    mcq: "quiz-body-mcq",
+    fill_bank: "quiz-body-fill-bank",
+    fill_open: "quiz-body-fill-open",
+    match: "quiz-body-match",
+    flash: "quiz-body-flash",
+  };
+  Object.entries(map).forEach(([k, id]) => {
+    const el = $(id);
+    if (el) el.hidden = k !== mode;
+  });
+  const kh = $("quiz-keyboard-hint");
+  if (kh) kh.hidden = mode !== "mcq";
 }
 
 function setProgress() {
-  const total = activeQuiz.length;
-  const n = Math.min(index + (answered ? 1 : 0), total);
-  const pct = total ? Math.round((n / total) * 100) : 0;
+  const total = activeQuiz.length || 1;
+  let n = 0;
+  let label = "";
+  if (studyFormat === "match") {
+    n = Math.min(matchCumulativePaired, total);
+    label = `${n} / ${total} abbinamenti`;
+  } else if (studyFormat === "flash") {
+    n = flashShowBack ? index + 1 : index;
+    label = `Flashcard ${Math.min(index + 1, total)} / ${total}`;
+  } else if (studyFormat === "mcq") {
+    n = Math.min(index + (answered ? 1 : 0), total);
+    label = `${n} / ${total}`;
+  } else {
+    n = Math.min(index + (answered ? 1 : 0), total);
+    label = `${n} / ${total}`;
+  }
+  const pct = Math.round((n / total) * 100);
   $("progress-fill").style.width = `${pct}%`;
-  $("progress-label").textContent = `${n} / ${total}`;
+  $("progress-label").textContent = label;
   const bar = $("progress-bar");
   if (bar) bar.setAttribute("aria-valuenow", String(pct));
+}
+
+function readStudyFormatFromUI() {
+  const v = $("study-format")?.value;
+  if (v === "fill_bank" || v === "fill_open" || v === "match" || v === "flash") return v;
+  return "mcq";
+}
+
+function setFillBankStemEl(el, stem, blanked) {
+  if (!el) return;
+  el.replaceChildren();
+  if (!blanked) {
+    el.textContent = stem;
+    return;
+  }
+  const parts = blanked.split("_____");
+  parts.forEach((part, i) => {
+    el.appendChild(document.createTextNode(part));
+    if (i < parts.length - 1) {
+      const span = document.createElement("span");
+      span.className = "blank-slot";
+      span.textContent = " … ";
+      el.appendChild(span);
+    }
+  });
+}
+
+function renderFillBank() {
+  if (!StudyModeUtils) return;
+  const q = activeQuiz[index];
+  if (!q) return;
+  syncQuizBodies("fill_bank");
+  clearQuizTimerVisual();
+  const meta = $("fill-bank-meta");
+  if (meta) {
+    meta.textContent = examMode
+      ? `Completamento · ${index + 1} di ${activeQuiz.length} · esame`
+      : `Completamento · ${index + 1} di ${activeQuiz.length}`;
+  }
+  const correctText = q.options[q.correct];
+  const blanked = StudyModeUtils.tryStemBlank(q.stem, correctText);
+  setFillBankStemEl($("fill-bank-stem"), q.stem, blanked);
+  const chips = $("fill-bank-chips");
+  if (!chips) return;
+  chips.replaceChildren();
+  fillBankSelectedKey = null;
+  answered = false;
+  const keys = StudyModeUtils.shuffleArray(["A", "B", "C", "D"]);
+  keys.forEach((k) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "study-chip";
+    btn.dataset.key = k;
+    btn.textContent = q.options[k];
+    btn.addEventListener("click", () => {
+      if (answered) return;
+      fillBankSelectedKey = k;
+      chips.querySelectorAll(".study-chip").forEach((c) => c.classList.remove("study-chip--selected"));
+      btn.classList.add("study-chip--selected");
+      const cbtn = $("btn-fill-bank-confirm");
+      if (cbtn) cbtn.disabled = false;
+    });
+    chips.appendChild(btn);
+  });
+  const fb = $("fill-bank-feedback");
+  if (fb) {
+    fb.hidden = true;
+    fb.textContent = "";
+    fb.className = "feedback";
+  }
+  const cbtn = $("btn-fill-bank-confirm");
+  if (cbtn) {
+    cbtn.disabled = true;
+    cbtn.textContent = "Conferma";
+  }
+  setProgress();
+  beginQuizTimerForCurrentQuestion();
+}
+
+function handleFillBankConfirm() {
+  const q = activeQuiz[index];
+  const chips = $("fill-bank-chips");
+  const fb = $("fill-bank-feedback");
+  const cbtn = $("btn-fill-bank-confirm");
+  if (!q || !fillBankSelectedKey) return;
+  if (!answered) {
+    const ok = fillBankSelectedKey === q.correct;
+    if (!ok) pushWrong(q);
+    answered = true;
+    if (fb) {
+      fb.hidden = false;
+      if (examMode) {
+        fb.className = "feedback feedback-exam";
+        fb.textContent = "Risposta registrata. Esito completo a fine sessione.";
+      } else {
+        fb.className = `feedback ${ok ? "ok" : "bad"}`;
+        fb.innerHTML = ok
+          ? `<strong>Giusto.</strong> (${q.correct}) ${escapeHtml(q.options[q.correct])}`
+          : `<strong>Sbagliato.</strong> Era <strong>${q.correct}</strong>: ${escapeHtml(q.options[q.correct])}`;
+      }
+    }
+    if (chips) {
+      chips.querySelectorAll(".study-chip").forEach((b) => {
+        b.disabled = true;
+        if (!examMode && b.dataset.key === q.correct) b.classList.add("study-chip--correct");
+        if (!examMode && b.dataset.key === fillBankSelectedKey && !ok) b.classList.add("study-chip--wrong");
+      });
+    }
+    if (cbtn) {
+      cbtn.disabled = false;
+      cbtn.textContent =
+        index < activeQuiz.length - 1 ? "Continua" : isReviewMode ? "Termina ripasso" : "Vedi risultati";
+    }
+    setProgress();
+    saveSessionSoon();
+    return;
+  }
+  if (index < activeQuiz.length - 1) {
+    index += 1;
+    renderFillBank();
+  } else if (isReviewMode) {
+    finishReview();
+  } else {
+    finishQuiz();
+  }
+  saveSessionSoon();
+}
+
+function renderFillOpen() {
+  const q = activeQuiz[index];
+  if (!q) return;
+  syncQuizBodies("fill_open");
+  clearQuizTimerVisual();
+  const meta = $("fill-open-meta");
+  if (meta) {
+    meta.textContent = examMode
+      ? `Scrivi la risposta · ${index + 1} di ${activeQuiz.length} · esame`
+      : `Scrivi la risposta · ${index + 1} di ${activeQuiz.length}`;
+  }
+  const stem = $("fill-open-stem");
+  if (stem) stem.textContent = q.stem;
+  const inp = $("fill-open-input");
+  if (inp) {
+    inp.value = "";
+    inp.disabled = false;
+  }
+  answered = false;
+  const fb = $("fill-open-feedback");
+  if (fb) {
+    fb.hidden = true;
+    fb.textContent = "";
+    fb.className = "feedback";
+  }
+  const cbtn = $("btn-fill-open-confirm");
+  if (cbtn) cbtn.textContent = "Conferma";
+  setProgress();
+  beginQuizTimerForCurrentQuestion();
+}
+
+function handleFillOpenConfirm() {
+  const q = activeQuiz[index];
+  if (!q || !StudyModeUtils) return;
+  const inp = $("fill-open-input");
+  const fb = $("fill-open-feedback");
+  const cbtn = $("btn-fill-open-confirm");
+  if (!answered) {
+    const raw = (inp?.value || "").trim();
+    if (!raw) return;
+    const ok = StudyModeUtils.openAnswersMatch(raw, q.options[q.correct]);
+    if (!ok) pushWrong(q);
+    answered = true;
+    if (inp) inp.disabled = true;
+    if (fb) {
+      fb.hidden = false;
+      if (examMode) {
+        fb.className = "feedback feedback-exam";
+        fb.textContent = "Risposta registrata. Esito completo a fine sessione.";
+      } else {
+        fb.className = `feedback ${ok ? "ok" : "bad"}`;
+        fb.innerHTML = ok
+          ? `<strong>Corretto.</strong> (${q.correct}) ${escapeHtml(q.options[q.correct])}`
+          : `<strong>Non coincide.</strong> Atteso: <strong>${q.correct}</strong> — ${escapeHtml(q.options[q.correct])}`;
+      }
+    }
+    if (cbtn) {
+      cbtn.textContent =
+        index < activeQuiz.length - 1 ? "Continua" : isReviewMode ? "Termina ripasso" : "Vedi risultati";
+    }
+    setProgress();
+    saveSessionSoon();
+    return;
+  }
+  if (index < activeQuiz.length - 1) {
+    index += 1;
+    renderFillOpen();
+  } else if (isReviewMode) {
+    finishReview();
+  } else {
+    finishQuiz();
+  }
+  saveSessionSoon();
+}
+
+function renderMatchRound() {
+  syncQuizBodies("match");
+  clearQuizTimerVisual();
+  const batch = activeQuiz.slice(matchBatchStart, matchBatchStart + MATCH_BATCH);
+  if (batch.length === 0) {
+    if (isReviewMode) finishReview();
+    else finishQuiz();
+    return;
+  }
+  matchPairedSi = new Set();
+  matchPickLeftSi = null;
+  matchErrorsBySi = {};
+  batch.forEach((qq) => {
+    matchErrorsBySi[qq.sourceIndex] = 0;
+  });
+  const meta = $("match-meta");
+  if (meta) {
+    meta.textContent = `Abbina · gruppo ${Math.floor(matchBatchStart / MATCH_BATCH) + 1} · ${batch.length} coppie`;
+  }
+  const leftEl = $("match-col-left");
+  const rightEl = $("match-col-right");
+  if (!leftEl || !rightEl) return;
+  leftEl.replaceChildren();
+  rightEl.replaceChildren();
+  const rights = StudyModeUtils.shuffleArray(
+    batch.map((qq) => ({ si: qq.sourceIndex, text: qq.options[qq.correct] }))
+  );
+  batch.forEach((qq) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "match-tile match-tile-left";
+    btn.dataset.si = String(qq.sourceIndex);
+    const oneLine = qq.stem.replace(/\s+/g, " ").trim();
+    const short = oneLine.slice(0, 140);
+    btn.textContent = short.length < oneLine.length ? `${short}…` : short;
+    btn.addEventListener("click", () => onMatchPickLeft(qq.sourceIndex));
+    leftEl.appendChild(btn);
+  });
+  rights.forEach(({ si, text }) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "match-tile match-tile-right";
+    btn.dataset.si = String(si);
+    btn.textContent = text;
+    btn.addEventListener("click", () => onMatchPickRight(si));
+    rightEl.appendChild(btn);
+  });
+  const mfb = $("match-feedback");
+  if (mfb) mfb.hidden = true;
+  setProgress();
+  beginQuizTimerForCurrentQuestion();
+}
+
+function onMatchPickLeft(si) {
+  if (matchPairedSi.has(si)) return;
+  matchPickLeftSi = si;
+  $("match-col-left")?.querySelectorAll(".match-tile-left").forEach((b) => {
+    b.classList.toggle("match-tile--picked", Number(b.dataset.si) === si);
+  });
+}
+
+function onMatchPickRight(siR) {
+  if (matchPickLeftSi === null) return;
+  if (matchPairedSi.has(siR)) return;
+  const siL = matchPickLeftSi;
+  const fb = $("match-feedback");
+  const batch = activeQuiz.slice(matchBatchStart, matchBatchStart + MATCH_BATCH);
+  if (siL === siR) {
+    matchPairedSi.add(siL);
+    matchCumulativePaired += 1;
+    matchPickLeftSi = null;
+    $("match-col-left")?.querySelectorAll(".match-tile-left").forEach((b) => {
+      const s = Number(b.dataset.si);
+      b.classList.remove("match-tile--picked");
+      if (s === siL) {
+        b.classList.add("match-tile--paired");
+        b.disabled = true;
+      }
+    });
+    $("match-col-right")?.querySelectorAll(".match-tile-right").forEach((b) => {
+      if (Number(b.dataset.si) === siR) {
+        b.classList.add("match-tile--paired");
+        b.disabled = true;
+      }
+    });
+    if (fb) fb.hidden = true;
+    setProgress();
+    saveSessionSoon();
+    if (matchPairedSi.size >= batch.length) {
+      batch.forEach((qq) => {
+        if ((matchErrorsBySi[qq.sourceIndex] || 0) > 0) pushWrong(qq);
+      });
+      matchBatchStart += batch.length;
+      if (matchBatchStart >= activeQuiz.length) {
+        if (isReviewMode) finishReview();
+        else finishQuiz();
+      } else {
+        renderMatchRound();
+      }
+    }
+  } else {
+    matchErrorsBySi[siL] = (matchErrorsBySi[siL] || 0) + 1;
+    matchPickLeftSi = null;
+    $("match-col-left")?.querySelectorAll(".match-tile-left").forEach((b) => b.classList.remove("match-tile--picked"));
+    if (fb) {
+      fb.hidden = false;
+      fb.className = "feedback bad";
+      fb.textContent = "Non corrisponde: scegli un’altra risposta a destra.";
+    }
+    saveSessionSoon();
+  }
+}
+
+function renderFlashcard() {
+  const q = activeQuiz[index];
+  if (!q) return;
+  syncQuizBodies("flash");
+  clearQuizTimerVisual();
+  flashShowBack = false;
+  const fm = $("flash-meta");
+  if (fm) fm.textContent = `Flashcard ${index + 1} di ${activeQuiz.length}`;
+  const fr = $("flash-front");
+  if (fr) {
+    fr.hidden = false;
+    fr.textContent = q.stem;
+  }
+  const bk = $("flash-back");
+  if (bk) bk.hidden = true;
+  const bt = $("flash-back-text");
+  if (bt) bt.textContent = `${q.correct}) ${q.options[q.correct]}`;
+  const hh = $("flash-back-hint");
+  if (hh) {
+    if (q.hint) {
+      hh.hidden = false;
+      hh.textContent = q.hint;
+    } else {
+      hh.hidden = true;
+      hh.textContent = "";
+    }
+  }
+  const fShow = $("flash-btn-show");
+  if (fShow) fShow.hidden = false;
+  const fForgot = $("flash-btn-forgot");
+  if (fForgot) fForgot.hidden = true;
+  const fKnew = $("flash-btn-knew");
+  if (fKnew) fKnew.hidden = true;
+  setProgress();
+  beginQuizTimerForCurrentQuestion();
+}
+
+function handleFlashShow() {
+  flashShowBack = true;
+  const fr = $("flash-front");
+  if (fr) fr.hidden = true;
+  const bk = $("flash-back");
+  if (bk) bk.hidden = false;
+  const sh = $("flash-btn-show");
+  if (sh) sh.hidden = true;
+  const fo = $("flash-btn-forgot");
+  if (fo) fo.hidden = false;
+  const kn = $("flash-btn-knew");
+  if (kn) kn.hidden = false;
+  setProgress();
+  saveSessionSoon();
+}
+
+function handleFlashRate(knew) {
+  const q = activeQuiz[index];
+  if (!knew && q) pushWrong(q);
+  index += 1;
+  flashShowBack = false;
+  if (index >= activeQuiz.length) {
+    if (isReviewMode) finishReview();
+    else finishQuiz();
+  } else {
+    renderFlashcard();
+  }
+  saveSessionSoon();
+}
+
+function beginStudyAfterStart() {
+  studyFormat = readStudyFormatFromUI();
+  $("btn-submit").textContent = "Conferma risposta";
+  if (studyFormat === "mcq") {
+    syncQuizBodies("mcq");
+    renderQuestion();
+  } else {
+    index = 0;
+    answered = false;
+    fillBankSelectedKey = null;
+    flashShowBack = false;
+    resetMatchStudyState();
+    if (!StudyModeUtils) {
+      studyFormat = "mcq";
+      syncQuizBodies("mcq");
+      renderQuestion();
+      saveSessionSoon();
+      return;
+    }
+    if (studyFormat === "fill_bank") renderFillBank();
+    else if (studyFormat === "fill_open") renderFillOpen();
+    else if (studyFormat === "match") renderMatchRound();
+    else renderFlashcard();
+  }
+  saveSessionSoon();
 }
 
 /**
@@ -1001,6 +1691,8 @@ function setProgress() {
 function renderQuestion(restore) {
   const q = activeQuiz[index];
   if (!q) return;
+
+  syncQuizBodies("mcq");
 
   if (!restore || !restore.answered) {
     selected = null;
@@ -1149,10 +1841,16 @@ async function recordQuizAttempt(correctCount, totalCount, isReview) {
   } = await sb.auth.getSession();
   if (!session) return;
   const ctx = attemptContext;
+  let folderId = ctx?.folderId || null;
+  const savedQuizId = ctx?.savedQuizId || null;
+  if (!folderId && savedQuizId) {
+    const { data: row } = await sb.from("saved_quizzes").select("folder_id").eq("id", savedQuizId).maybeSingle();
+    if (row?.folder_id) folderId = row.folder_id;
+  }
   const { error } = await sb.from("quiz_attempts").insert({
     user_id: session.user.id,
-    folder_id: ctx?.folderId || null,
-    saved_quiz_id: ctx?.savedQuizId || null,
+    folder_id: folderId,
+    saved_quiz_id: savedQuizId,
     correct_count: correctCount,
     total_count: totalCount,
     review_mode: isReview,
@@ -1258,9 +1956,7 @@ function startFromText(text, historyEntry) {
   selected = null;
   answered = false;
   showPanel("quiz");
-  renderQuestion();
-  $("btn-submit").textContent = "Conferma risposta";
-  saveSessionSoon();
+  beginStudyAfterStart();
 }
 
 function shuffle(arr) {
@@ -1293,9 +1989,15 @@ function shuffle(arr) {
     startFromText($("raw-text").value);
   });
 
+  $("study-format")?.addEventListener("change", () => {
+    const ta = $("raw-text");
+    if (ta) ta.value = getStudyFormatSampleText();
+  });
+
   $("btn-sample").addEventListener("click", () => {
-    $("raw-text").value = SAMPLE;
-    startFromText(SAMPLE);
+    const t = getStudyFormatSampleText();
+    $("raw-text").value = t;
+    startFromText(t);
   });
 
   $("btn-reset").addEventListener("click", () => {
@@ -1319,6 +2021,7 @@ function shuffle(arr) {
   });
 
   $("btn-submit").addEventListener("click", () => {
+    if (studyFormat !== "mcq") return;
     if (!answered) {
       revealAndFeedback();
       return;
@@ -1354,9 +2057,7 @@ function shuffle(arr) {
     isReviewMode = true;
     wrongBank = [];
     showPanel("quiz");
-    $("btn-submit").textContent = "Conferma risposta";
-    renderQuestion();
-    saveSessionSoon();
+    beginStudyAfterStart();
   });
 
   $("btn-results-home").addEventListener("click", () => {
@@ -1373,10 +2074,14 @@ function shuffle(arr) {
     wrongBank = [];
     isReviewMode = false;
     showPanel("quiz");
-    $("btn-submit").textContent = "Conferma risposta";
-    renderQuestion();
-    saveSessionSoon();
+    beginStudyAfterStart();
   });
+
+  $("btn-fill-bank-confirm")?.addEventListener("click", () => handleFillBankConfirm());
+  $("btn-fill-open-confirm")?.addEventListener("click", () => handleFillOpenConfirm());
+  $("flash-btn-show")?.addEventListener("click", () => handleFlashShow());
+  $("flash-btn-forgot")?.addEventListener("click", () => handleFlashRate(false));
+  $("flash-btn-knew")?.addEventListener("click", () => handleFlashRate(true));
 
   $("btn-save-history").addEventListener("click", async () => {
     const raw = (savedRawText || $("raw-text").value || "").trim();
@@ -1386,6 +2091,11 @@ function shuffle(arr) {
 
   window.addEventListener("quiz-auth-changed", () => {
     void renderHistoryList();
+    syncQuizCloudSaveButton();
+  });
+
+  $("btn-save-quiz-cloud")?.addEventListener("click", () => {
+    void saveCurrentQuizToCloudFromPanel();
   });
 
   $("btn-new-folder")?.addEventListener("click", async () => {
@@ -1397,18 +2107,10 @@ function shuffle(arr) {
     localStorage.removeItem("quiz-ai-history");
   } catch (e) {}
 
-  const llmPromptTa = $("llm-prompt-text");
+  const llmPromptCard = document.querySelector(".llm-prompt-card");
   const llmCopyFb = $("llm-copy-feedback");
   let llmCopyTimer = 0;
-  $("btn-copy-llm-prompt")?.addEventListener("click", async () => {
-    if (!llmPromptTa) return;
-    try {
-      await navigator.clipboard.writeText(llmPromptTa.value);
-    } catch (e) {
-      llmPromptTa.focus();
-      llmPromptTa.select();
-      document.execCommand("copy");
-    }
+  function showLlmCopyFeedback() {
     if (llmCopyFb) {
       llmCopyFb.hidden = false;
       window.clearTimeout(llmCopyTimer);
@@ -1416,6 +2118,22 @@ function shuffle(arr) {
         llmCopyFb.hidden = true;
       }, 2000);
     }
+  }
+  llmPromptCard?.addEventListener("click", async (e) => {
+    const btn = e.target.closest(".btn-copy-llm-prompt-disclosure");
+    if (!btn) return;
+    const id = btn.getAttribute("data-llm-target");
+    const ta = id ? $(id) : null;
+    if (!ta) return;
+    e.preventDefault();
+    try {
+      await navigator.clipboard.writeText(ta.value);
+    } catch (err) {
+      ta.focus();
+      ta.select();
+      document.execCommand("copy");
+    }
+    showLlmCopyFeedback();
   });
 
   const summaryFb = $("summary-copy-feedback");
@@ -1445,5 +2163,8 @@ function shuffle(arr) {
   });
 
   tryRestoreOnLoad();
+  if (!($("raw-text")?.value || "").trim()) {
+    $("raw-text").value = getStudyFormatSampleText();
+  }
   };
 })(window.QuizAi);

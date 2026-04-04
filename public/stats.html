@@ -15,7 +15,7 @@
     })();
   </script>
   <title>Quiz.ai — Statistiche</title>
-  <meta name="description" content="Statistiche tentativi quiz per cartella (account Supabase)." />
+  <meta name="description" content="Statistiche tentativi quiz: andamento, cartelle, cronologia (account Supabase)." />
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -51,29 +51,67 @@
           </button>
         </div>
       </div>
-      <p class="tagline">Statistiche per cartella (tentativi salvati sul cloud).</p>
+      <p class="tagline stats-page-tagline">Come stai andando: tentativi sul cloud, medie per cartella e cronologia per studiare i risultati.</p>
     </header>
 
-    <main class="stats-main">
-      <section class="stats-section" aria-labelledby="stats-heading">
-        <h2 id="stats-heading" class="subsection-title">Riepilogo</h2>
-        <p id="stats-auth-hint" class="history-empty" hidden>Accedi dalla pagina principale per vedere le statistiche.</p>
-        <p id="stats-no-data" class="history-empty" hidden>Nessun tentativo registrato. Completa un quiz (con account) per popolare i dati.</p>
-        <p id="stats-error" class="parse-error" hidden></p>
-        <div id="stats-chart-wrap" class="stats-chart-wrap" hidden>
-          <canvas id="stats-chart" height="120" aria-label="Grafico media percentuale corretti per cartella"></canvas>
+    <main class="stats-main stats-main--wide">
+      <p id="stats-auth-hint" class="stats-callout stats-callout--muted" hidden></p>
+      <p id="stats-no-data" class="stats-callout stats-callout--muted" hidden></p>
+      <p id="stats-error" class="stats-callout stats-callout--error" hidden></p>
+
+      <section id="stats-kpi-section" class="stats-kpi-section" aria-labelledby="stats-kpi-heading" hidden>
+        <h2 id="stats-kpi-heading" class="visually-hidden">Indicatori riassuntivi</h2>
+        <div id="stats-kpi" class="stats-kpi-grid"></div>
+        <p class="stats-kpi-footnote">
+          La <strong>precisione complessiva</strong> è pesata sulle domande: un tentativo da 20 domande pesa doppio rispetto a uno da 10.
+        </p>
+      </section>
+
+      <section class="stats-section stats-section--chart" aria-labelledby="stats-folder-heading">
+        <div class="stats-section-head">
+          <h2 id="stats-folder-heading" class="stats-section-title">Andamento per cartella</h2>
+          <p class="stats-section-lead">
+            Ogni riga è una cartella (o «Senza cartella»). La media % è pesata sulle domande. Se il tentativo è collegato a un quiz negli <strong>appunti cloud</strong>, la cartella è quella in cui si trova oggi quel quiz (anche se sul record del tentativo la cartella non era stata salvata). I tentativi senza quiz collegato restano «Senza cartella».
+          </p>
         </div>
-        <div id="stats-table-wrap" class="stats-table-wrap" hidden>
-          <table class="stats-table" id="stats-table">
+        <div id="stats-chart-wrap" class="stats-chart-wrap" hidden>
+          <canvas id="stats-chart" height="200" aria-label="Grafico media percentuale corretti per cartella"></canvas>
+        </div>
+        <div id="stats-table-wrap" class="stats-table-wrap stats-table-wrap--elevated" hidden>
+          <table class="stats-table stats-table--folders" id="stats-table">
             <thead>
               <tr>
                 <th scope="col">Cartella</th>
                 <th scope="col">Tentativi</th>
+                <th scope="col">Corrette / domande</th>
                 <th scope="col">Media %</th>
-                <th scope="col">Ultimo</th>
+                <th scope="col">Ultimo tentativo</th>
               </tr>
             </thead>
             <tbody id="stats-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="stats-section" aria-labelledby="stats-recent-heading">
+        <div class="stats-section-head">
+          <h2 id="stats-recent-heading" class="stats-section-title">Ultimi tentativi</h2>
+          <p class="stats-section-lead">
+            Dettaglio degli esiti più recenti: utile per capire se stai migliorando e se usi più il ripasso o il quiz intero.
+          </p>
+        </div>
+        <div id="stats-recent-wrap" class="stats-recent-wrap" hidden>
+          <table class="stats-table stats-table--recent" id="stats-recent-table">
+            <thead>
+              <tr>
+                <th scope="col">Data</th>
+                <th scope="col">Cartella</th>
+                <th scope="col">Risultato</th>
+                <th scope="col">Tipo</th>
+                <th scope="col">Esame</th>
+              </tr>
+            </thead>
+            <tbody id="stats-recent-body"></tbody>
           </table>
         </div>
       </section>
