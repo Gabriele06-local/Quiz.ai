@@ -221,7 +221,20 @@
           <h3 class="subsection-title history-heading">Storico quiz</h3>
           <div class="history-toolbar" id="history-toolbar" hidden>
             <button type="button" id="btn-new-folder" class="btn btn-ghost btn-small">+ Nuova cartella</button>
+            <input type="file" id="history-import-input" class="visually-hidden" accept=".json,application/json" aria-hidden="true" />
+            <button type="button" id="btn-history-import" class="btn btn-ghost btn-small" title="Ripristina quiz da un file .json esportato da Quiz.ai">
+              Importa backup
+            </button>
+            <details class="history-export-details history-export-details--toolbar">
+              <summary class="history-export-summary">Esporta tutto</summary>
+              <div class="history-export-row">
+                <button type="button" id="btn-export-all-json" class="btn btn-ghost btn-small">JSON</button>
+                <button type="button" id="btn-export-all-txt" class="btn btn-ghost btn-small">Testo</button>
+                <button type="button" id="btn-export-all-md" class="btn btn-ghost btn-small">Markdown</button>
+              </div>
+            </details>
           </div>
+          <p id="history-import-ok" class="history-import-ok" role="status" hidden></p>
           <p id="history-auth-hint" class="history-empty" hidden>
             Accedi per vedere e salvare lo storico nel database.
           </p>
@@ -433,6 +446,7 @@
   <script src="assets/js/supabase-client.js" defer></script>
   <script src="assets/js/theme.js" defer></script>
   <script src="assets/js/auth-ui.js" defer></script>
+  <script src="assets/js/quiz-backup.js" defer></script>
   <script src="assets/js/quiz-app.js" defer></script>
   <script src="assets/js/main.js" defer></script>
   <script>

@@ -538,6 +538,11 @@ function makeTitleFromRaw(raw) {
 }
 
 function showHistorySaveError(msg) {
+  const okEl = $("history-import-ok");
+  if (okEl) {
+    okEl.hidden = true;
+    okEl.textContent = "";
+  }
   const el = $("history-save-error");
   if (el) {
     el.textContent = msg;
@@ -548,6 +553,55 @@ function showHistorySaveError(msg) {
 function hideHistorySaveError() {
   const el = $("history-save-error");
   if (el) el.hidden = true;
+}
+
+let historyImportOkTimer = 0;
+function showHistoryImportOk(msg) {
+  hideHistorySaveError();
+  const el = $("history-import-ok");
+  if (!el) return;
+  el.textContent = msg;
+  el.hidden = false;
+  window.clearTimeout(historyImportOkTimer);
+  historyImportOkTimer = window.setTimeout(() => {
+    el.hidden = true;
+    el.textContent = "";
+  }, 6000);
+}
+
+/**
+ * @param {(format: "json" | "txt" | "md") => void} onFormat
+ */
+function createExportFormatRow(onFormat) {
+  if (!Q.QuizBackup) return document.createDocumentFragment();
+  const d = document.createElement("details");
+  d.className = "history-export-details";
+  const s = document.createElement("summary");
+  s.className = "history-export-summary";
+  s.textContent = "Esporta";
+  const row = document.createElement("div");
+  row.className = "history-export-row";
+  const specs = [
+    { fmt: "json", label: "JSON", title: "Backup da reimportare qui con «Importa backup»" },
+    { fmt: "txt", label: "Testo", title: "Un file leggibile; per reimportare usa il JSON" },
+    { fmt: "md", label: "MD", title: "Markdown; per reimportare usa il JSON" },
+  ];
+  specs.forEach(({ fmt, label, title }) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "btn btn-ghost btn-small history-export-btn";
+    b.textContent = label;
+    b.title = title;
+    b.addEventListener("click", (e) => {
+      e.preventDefault();
+      d.open = false;
+      onFormat(fmt);
+    });
+    row.appendChild(b);
+  });
+  d.appendChild(s);
+  d.appendChild(row);
+  return d;
 }
 
 /**
@@ -837,6 +891,11 @@ function buildHistoryQuizRow(entry, folderOpts, folderGroups) {
   actions.appendChild(btnRen);
   actions.appendChild(sel);
   actions.appendChild(btnLoad);
+  actions.appendChild(
+    createExportFormatRow((fmt) => {
+      Q.QuizBackup?.exportSingleQuiz(entry, fmt);
+    })
+  );
   actions.appendChild(btnDel);
 
   li.appendChild(main);
@@ -893,6 +952,11 @@ function appendFolderDetailsBlock(ul, group, entries, folderOpts, folderGroups) 
 
   toolbar.appendChild(btnRenF);
   toolbar.appendChild(btnDelF);
+  toolbar.appendChild(
+    createExportFormatRow((fmt) => {
+      Q.QuizBackup?.exportFolder(group.displayName, entries, fmt);
+    })
+  );
 
   const nested = document.createElement("ul");
   nested.className = "history-nested";
@@ -928,6 +992,14 @@ function appendRootDetailsBlock(ul, entries, folderOpts, folderGroups) {
   summary.appendChild(nameSpan);
   summary.appendChild(countSpan);
 
+  const toolbarRoot = document.createElement("div");
+  toolbarRoot.className = "history-folder-toolbar";
+  toolbarRoot.appendChild(
+    createExportFormatRow((fmt) => {
+      Q.QuizBackup?.exportRootBlock(entries, fmt);
+    })
+  );
+
   const nested = document.createElement("ul");
   nested.className = "history-nested";
   entries.forEach((entry) => {
@@ -935,6 +1007,7 @@ function appendRootDetailsBlock(ul, entries, folderOpts, folderGroups) {
   });
 
   details.appendChild(summary);
+  details.appendChild(toolbarRoot);
   details.appendChild(nested);
   wrap.appendChild(details);
   ul.appendChild(wrap);
@@ -2102,6 +2175,49 @@ function shuffle(arr) {
     const n = promptRename("Nome della nuova cartella:", "");
     if (n) await createDbFolder(n);
   });
+
+  $("btn-history-import")?.addEventListener("click", () => {
+    $("history-import-input")?.click();
+  });
+
+  $("history-import-input")?.addEventListener("change", async (e) => {
+    const input = /** @type {HTMLInputElement} */ (e.target);
+    const f = input.files?.[0];
+    if (!f) return;
+    hideHistorySaveError();
+    try {
+      const text = await f.text();
+      if (Q.QuizBackup) {
+        await Q.QuizBackup.importFromJsonString(text, {
+          showHistorySaveError,
+          hideHistorySaveError,
+          showHistoryImportOk,
+          renderHistoryList,
+        });
+      } else {
+        showHistorySaveError("Modulo backup non caricato.");
+      }
+    } catch (err) {
+      showHistorySaveError("Impossibile leggere il file.");
+    }
+    input.value = "";
+  });
+
+  function wireExportAll(id, fmt) {
+    $(id)?.addEventListener("click", async () => {
+      hideHistorySaveError();
+      if (!Q.QuizBackup) {
+        showHistorySaveError("Modulo backup non caricato.");
+        return;
+      }
+      const ok = await Q.QuizBackup.downloadFullBackup(fmt);
+      if (!ok) showHistorySaveError("Accedi e assicurati che Supabase sia configurato per esportare.");
+      else showHistoryImportOk("Download avviato.");
+    });
+  }
+  wireExportAll("btn-export-all-json", "json");
+  wireExportAll("btn-export-all-txt", "txt");
+  wireExportAll("btn-export-all-md", "md");
 
   try {
     localStorage.removeItem("quiz-ai-history");
