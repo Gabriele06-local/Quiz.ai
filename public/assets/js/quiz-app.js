@@ -1232,10 +1232,10 @@ function buildResultsSummaryText() {
   if (!$("wrong-list")?.hidden && wrongBank.length > 0) {
     lines.push("Domande da ripassare:");
     wrongBank.forEach((q, i) => {
-      const stem = q.stem.replace(/\s+/g, " ").trim();
-      lines.push(`${i + 1}. ${stem}`);
+      lines.push(`${i + 1}. ${(q.stem || "").trim()}`);
       const opt = q.options[q.correct];
       lines.push(`   Risposta corretta: ${q.correct}) ${opt || ""}`);
+      lines.push("");
     });
   }
   return lines.join("\n");
@@ -1937,8 +1937,17 @@ function fillWrongList(items) {
   wi.innerHTML = "";
   items.forEach((q) => {
     const li = document.createElement("li");
-    const short = q.stem.replace(/\n/g, " ");
-    li.textContent = short.slice(0, 120) + (short.length > 120 ? "…" : "");
+    li.className = "wrong-item";
+    const stemEl = document.createElement("p");
+    stemEl.className = "wrong-item-stem";
+    stemEl.textContent = (q.stem || "").trim();
+    const ansEl = document.createElement("p");
+    ansEl.className = "wrong-item-correct";
+    const letter = q.correct;
+    const optText = q.options[letter] || "";
+    ansEl.innerHTML = `<strong>Risposta corretta:</strong> ${escapeHtml(letter)}) ${escapeHtml(optText)}`;
+    li.appendChild(stemEl);
+    li.appendChild(ansEl);
     wi.appendChild(li);
   });
 }
