@@ -960,6 +960,19 @@ body {
   letter-spacing: -0.01em;
 }
 
+.question-text .katex,
+.option-body .katex,
+.feedback .katex,
+.study-chip .katex,
+.match-tile .katex,
+.flash-back-main .katex,
+.flash-hint .katex,
+.wrong-item-stem .katex,
+.wrong-item-correct .katex,
+.hint-box .katex {
+  font-size: 0.97em;
+}
+
 .options {
   display: flex;
   flex-direction: column;

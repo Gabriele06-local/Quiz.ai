@@ -1356,6 +1356,28 @@ function readStudyFormatFromUI() {
   return "mcq";
 }
 
+function scheduleMathForActiveQuizBody() {
+  const fn = Q.scheduleRenderMath;
+  if (!fn || $("panel-quiz")?.hidden) return;
+  const map = {
+    mcq: "quiz-body-mcq",
+    fill_bank: "quiz-body-fill-bank",
+    fill_open: "quiz-body-fill-open",
+    match: "quiz-body-match",
+    flash: "quiz-body-flash",
+  };
+  const id = map[studyFormat];
+  const el = id ? $(id) : null;
+  if (el) fn(el);
+}
+
+function scheduleMathInResults() {
+  const fn = Q.scheduleRenderMath;
+  if (!fn || $("panel-results")?.hidden) return;
+  const wl = $("wrong-list");
+  if (wl) fn(wl);
+}
+
 function setFillBankStemEl(el, stem, blanked) {
   if (!el) return;
   el.replaceChildren();
@@ -1425,6 +1447,7 @@ function renderFillBank() {
   }
   setProgress();
   beginQuizTimerForCurrentQuestion();
+  scheduleMathForActiveQuizBody();
 }
 
 function handleFillBankConfirm() {
@@ -1462,6 +1485,7 @@ function handleFillBankConfirm() {
         index < activeQuiz.length - 1 ? "Continua" : isReviewMode ? "Termina ripasso" : "Vedi risultati";
     }
     setProgress();
+    scheduleMathForActiveQuizBody();
     saveSessionSoon();
     return;
   }
@@ -1505,6 +1529,7 @@ function renderFillOpen() {
   if (cbtn) cbtn.textContent = "Conferma";
   setProgress();
   beginQuizTimerForCurrentQuestion();
+  scheduleMathForActiveQuizBody();
 }
 
 function handleFillOpenConfirm() {
@@ -1537,6 +1562,7 @@ function handleFillOpenConfirm() {
         index < activeQuiz.length - 1 ? "Continua" : isReviewMode ? "Termina ripasso" : "Vedi risultati";
     }
     setProgress();
+    scheduleMathForActiveQuizBody();
     saveSessionSoon();
     return;
   }
@@ -1602,6 +1628,7 @@ function renderMatchRound() {
   if (mfb) mfb.hidden = true;
   setProgress();
   beginQuizTimerForCurrentQuestion();
+  scheduleMathForActiveQuizBody();
 }
 
 function onMatchPickLeft(si) {
@@ -1660,6 +1687,7 @@ function onMatchPickRight(siR) {
       fb.className = "feedback bad";
       fb.textContent = "Non corrisponde: scegli un’altra risposta a destra.";
     }
+    scheduleMathForActiveQuizBody();
     saveSessionSoon();
   }
 }
@@ -1699,6 +1727,7 @@ function renderFlashcard() {
   if (fKnew) fKnew.hidden = true;
   setProgress();
   beginQuizTimerForCurrentQuestion();
+  scheduleMathForActiveQuizBody();
 }
 
 function handleFlashShow() {
@@ -1714,6 +1743,7 @@ function handleFlashShow() {
   const kn = $("flash-btn-knew");
   if (kn) kn.hidden = false;
   setProgress();
+  scheduleMathForActiveQuizBody();
   saveSessionSoon();
 }
 
@@ -1816,6 +1846,7 @@ function renderQuestion(restore) {
 
   setProgress();
   beginQuizTimerForCurrentQuestion();
+  scheduleMathForActiveQuizBody();
 }
 
 function argomentazioneFeedback(ok, argText) {
@@ -1886,6 +1917,7 @@ function applyAnsweredUI(q, selectedKey, argText, hintVisible) {
   }
 
   setProgress();
+  scheduleMathForActiveQuizBody();
 }
 
 function pushWrong(q) {
@@ -1950,6 +1982,7 @@ function fillWrongList(items) {
     li.appendChild(ansEl);
     wi.appendChild(li);
   });
+  scheduleMathInResults();
 }
 
 function finishQuiz() {
@@ -2126,6 +2159,7 @@ function shuffle(arr) {
     $("hint-box").hidden = false;
     $("hint-box").innerHTML = `<strong>Suggerimento</strong><br/>${escapeHtml(q.hint)}`;
     $("btn-hint").textContent = "Suggerimento mostrato";
+    scheduleMathForActiveQuizBody();
     saveSessionSoon();
   });
 
