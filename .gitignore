@@ -4,6 +4,9 @@ favicon-extract/
 .env
 public/supabase-config.js
 
+node_modules/
+coverage/
+
 .DS_Store
 Thumbs.db
 desktop.ini

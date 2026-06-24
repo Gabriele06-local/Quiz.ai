@@ -1,60 +1,89 @@
 # Quiz.ai
 
-App web statica per studiare con quiz a scelta multipla: incolli il testo, l’app riconosce domande e risposte e ti guida domanda per domanda.
+[![CI](https://github.com/Gabriele06-local/Quiz.ai/actions/workflows/ci.yml/badge.svg)](https://github.com/Gabriele06-local/Quiz.ai/actions/workflows/ci.yml)
+[![Docker](https://github.com/Gabriele06-local/Quiz.ai/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/Gabriele06-local/Quiz.ai/actions/workflows/docker-publish.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Netlify Status](https://api.netlify.com/api/v1/badges/--/deploy-status)](https://app.netlify.com/sites/quizioai/deploys)
+
+App web statica per studiare con quiz a scelta multipla: incolli il testo, l'app riconosce domande e risposte e ti guida domanda per domanda.
 
 **Online:** [quizioai.netlify.app](https://quizioai.netlify.app/)
 
-## Struttura cartelle
+## Funzionalità
+
+- **Incolla il testo** del quiz: l'app parserizza domande (`1.`, `### **1.**`), opzioni (`A)`..`D)`) e risposte corrette
+- **5 modalità di studio**: classica, completamento con word bank, completamento aperto, matching, flashcard
+- **Timer** per domanda o per intero quiz, modalità esame senza feedback immediato
+- **Tema chiaro/scuro** persistente
+- **Account cloud** (Supabase) per salvare quiz e statistiche
+- **Matematica** con KaTeX (delimitatori `$...$` e `$$...$$`)
+- **Storico** con cartelle, rinomina, sposta, esporta in JSON/TXT/Markdown
+- **LLM Prompt Generator**: prompt precompilati per ChatGPT/Claude/Gemini
+
+## Struttura
 
 ```
 quiz.ai/
-├── public/                    → sito pubblicato (Netlify: publish = public)
+├── public/                  → sito statico (publish dir)
 │   ├── index.html
-│   ├── favicon.svg
-│   ├── site.webmanifest
-│   ├── supabase-config.js     → generato in build (non in git)
-│   └── assets/
-│       ├── css/styles.css
-│       └── js/
-│           ├── main.js        → ingresso
-│           ├── quiz-app.js    → logica quiz + storico
-│           ├── auth-ui.js     → login / registrazione
-│           ├── supabase-client.js
-│           ├── parser.js
-│           ├── theme.js
-│           └── dom.js
+│   ├── stats.html
+│   ├── assets/
+│   │   ├── css/styles.css
+│   │   └── js/              → JS vanilla (IIFE, no bundler)
+│   └── supabase-config.js   → generato in build
 ├── scripts/
 │   └── generate-supabase-config.mjs
 ├── supabase/
 │   ├── schema.sql
-│   └── migration_from_v1.sql   → solo se DB già creato senza cartelle
-├── netlify.toml
-└── .env.example
+│   └── migration_from_v1.sql
+├── tests/                   → test unitari (Vitest + jsdom)
+├── Dockerfile               → build immagine Nginx multi-stage
+├── docker-compose.yml
+└── .github/workflows/       → CI + Docker publish
 ```
 
-## Come usarlo
+## Sviluppo
 
-1. **Solo HTML/CSS/JS**: niente npm né build. Apri `public/index.html` con doppio clic (`file://`): gli script sono **classici** (non moduli ES). Per **login cloud** serve comunque rete: Supabase viene caricato da **jsDelivr** (CDN). Senza rete il quiz locale funziona, l’account no.
-2. **Console Chrome su `file://`**: messaggi tipo *«Unsafe attempt to load URL file://… from frame…»* sono limiti del browser sul protocollo `file:` (ogni percorso = origine diversa; spesso se la pagina è in **anteprima dentro un iframe**, es. nell’editor). Non è un difetto dell’app se il resto funziona. In `index.html` compare un **avviso giallo** quando usi `file://`; per evitare console e avere origine `http://localhost`, servi `public` con HTTP (`python -m http.server` dentro `public`, poi `http://localhost:8000`) oppure apri il file in una **scheda normale** del browser (non nell’anteprima incorporata).
-3. Incolla il testo del quiz. Formato: domande (`1.` / `### **1. …**`), opzioni `A)`…`D)`, riga `Risposta: X`, opzionale `Suggerimento:`.
-4. **Accedi** / **Registrati**: lo **storico quiz** è solo sul **database** (non viene più salvato in locale). «Salva negli appunti» richiede sessione attiva.
-5. **Storico**: cartelle **apribili/chiudibili** (clic sul nome); **+ Nuova cartella**; **Rinomina** su quiz e cartelle; **Sposta in cartella**; **Elimina cartella** (i quiz vanno in «Senza cartella»).
-6. Tema **Giorno** / **Notte**, ripresa quiz in sospeso e **Nuovo testo** come prima.
+```bash
+# Installa dipendenze (solo per test/lint)
+npm install
+
+# Test unitari
+npm test
+
+# Lint
+npm run lint
+
+# Genera supabase-config.js
+cp .env.example .env
+# modifica .env con i tuoi dati Supabase
+npm run build
+```
+
+## Docker
+
+```bash
+# Build e avvia
+docker compose up -d
+
+# Oppure build manuale
+docker build -t quiz-ai .
+docker run -p 8080:80 quiz-ai
+```
 
 ## Supabase
 
-- Esegui `supabase/schema.sql` nel **SQL Editor** (progetto nuovo o allineamento completo).
-- Se avevi già la vecchia tabella senza cartelle: esegui anche `supabase/migration_from_v1.sql` (aggiunge `saved_quiz_folders`, `folder_id`, RLS cartelle e corregge il trigger `saved_quizzes_touch_updated_at` con `SET search_path = public` per il linter *Function Search Path Mutable*).
-- Per **statistiche** (pagina `stats.html`, tentativi per cartella): esegui `supabase/migration_quiz_attempts.sql` (tabella `quiz_attempts` + RLS) se il progetto esisteva già senza questa tabella.
-- **RLS quiz + cartelle**: le policy limitano tutto a `authenticated` e al proprio `user_id`; insert/update su `saved_quizzes` richiedono che `folder_id` sia `null` o una cartella **dello stesso utente**. Se il DB era stato creato prima di questo vincolo, esegui anche `supabase/patch_rls_quiz_folder_same_user.sql`.
+1. Crea un progetto su [supabase.com](https://supabase.com)
+2. Esegui `supabase/schema.sql` nel SQL Editor
+3. Imposta le variabili d'ambiente (vedi `.env.example`)
+4. Per statistiche: esegui `supabase/migration_quiz_attempts.sql`
 
-## Sicurezza (checklist)
+## CI/CD
 
-- **Repository**: `.env` e `public/supabase-config.js` sono in `.gitignore`; in repo resta solo `.env.example` senza segreti.
-- **Netlify**: in *Site settings → Environment variables* imposta `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY` (oppure `SUPABASE_URL` + `SUPABASE_ANON_KEY`). Non configurare la **service role** per il build del sito statico: finirebbe nel JS generato. **Importante:** ogni variabile deve essere abilitata per i **build** (in UI: scope che include *Builds* / *Include in builds*). Se manca, `supabase-config.js` resta con URL e chiave vuoti e in sito vedi «Account cloud (Supabase)» anche con le variabili presenti: controlla lo scope, poi *Trigger deploy* → *Clear cache and deploy site*.
-- **Supabase Dashboard**: verifica che su *Authentication → Providers* e *URL configuration* siano coerenti redirect e sito pubblicato; RLS resta la barriera principale lato dati.
-- **Deploy**: `netlify.toml` imposta header `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` sulle risposte statiche.
+- **CI** (`.github/workflows/ci.yml`): lint + test + build check su ogni push/PR
+- **Docker** (`.github/workflows/docker-publish.yml`): build e push su ghcr.io
+- **Netlify**: deploy automatico dal branch main configurato su [netlify.com](https://netlify.com)
 
-## Repository
+## Licenza
 
-Progetto: [Gabriele06-local/Quiz.ai](https://github.com/Gabriele06-local/Quiz.ai).
+MIT — vedi [LICENSE](LICENSE).

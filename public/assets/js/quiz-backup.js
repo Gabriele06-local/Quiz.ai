@@ -12,7 +12,10 @@
    * @param {string} s
    */
   function sanitizeFilename(s) {
-    const t = (s || "quiz-ai-backup").replace(/[/\\?%*:|"<>]/g, "-").replace(/\s+/g, " ").trim();
+    const t = (s || "quiz-ai-backup")
+      .replace(/[/\\?%*:|"<>]/g, "-")
+      .replace(/\s+/g, " ")
+      .trim();
     return t.slice(0, 80) || "quiz-ai-backup";
   }
 
@@ -98,7 +101,7 @@
     downloadString(
       `${sanitizeFilename(baseName)}.json`,
       "application/json;charset=utf-8",
-      JSON.stringify(payload, null, 2)
+      JSON.stringify(payload, null, 2),
     );
   }
 
@@ -325,7 +328,7 @@
     }
     if (!data || data.quizAiExport !== true || data.version !== EXPORT_VERSION) {
       ui.showHistorySaveError(
-        'Backup non riconosciuto: serve un file esportato da Quiz.ai (campo "quizAiExport": true, versione 1).'
+        'Backup non riconosciuto: serve un file esportato da Quiz.ai (campo "quizAiExport": true, versione 1).',
       );
       return;
     }

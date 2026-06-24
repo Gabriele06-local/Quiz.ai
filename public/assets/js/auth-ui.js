@@ -82,7 +82,9 @@
     } else {
       sb.auth.getSession().then(({ data }) => {
         updateAuthUI(data.session);
-        window.dispatchEvent(new CustomEvent("quiz-auth-changed", { detail: { session: data.session } }));
+        window.dispatchEvent(
+          new CustomEvent("quiz-auth-changed", { detail: { session: data.session } }),
+        );
       });
       sb.auth.onAuthStateChange((_event, session) => {
         updateAuthUI(session);
@@ -163,7 +165,9 @@
         setAuthError(error.message);
         return;
       }
-      setAuthError("Controlla la email per confermare l’account (se richiesto dal progetto Supabase).");
+      setAuthError(
+        "Controlla la email per confermare l’account (se richiesto dal progetto Supabase).",
+      );
       const { data } = await client.auth.getSession();
       if (data.session) showAuthModal(false);
     });

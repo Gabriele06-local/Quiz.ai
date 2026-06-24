@@ -1,0 +1,40 @@
+{
+  "name": "quiz-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static web app for studying with multiple-choice quizzes",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/generate-supabase-config.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "lint": "eslint public/assets/js/ --ext .js",
+    "lint:fix": "eslint public/assets/js/ --ext .js --fix",
+    "format": "prettier --write \"public/assets/js/**/*.js\" \"tests/**/*.js\"",
+    "format:check": "prettier --check \"public/assets/js/**/*.js\" \"tests/**/*.js\"",
+    "docker:build": "docker build -t quiz-ai .",
+    "prepare": "husky || true"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.24.0",
+    "@vitest/runner": "^3.1.2",
+    "eslint": "^9.24.0",
+    "eslint-plugin-compat": "^6.0.2",
+    "globals": "^16.0.0",
+    "husky": "^9.1.7",
+    "jsdom": "^26.1.0",
+    "lint-staged": "^15.5.1",
+    "prettier": "^3.5.3",
+    "vitest": "^3.1.2"
+  },
+  "lint-staged": {
+    "*.js": [
+      "eslint --fix",
+      "prettier --write"
+    ]
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

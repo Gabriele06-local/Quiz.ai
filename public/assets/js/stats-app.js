@@ -36,7 +36,9 @@
     if (!canvas || typeof Chart === "undefined") return;
 
     const labels = rows.map((r) => r.label);
-    const data = rows.map((r) => (r.sumTotal > 0 ? Math.round((r.sumCorrect / r.sumTotal) * 1000) / 10 : 0));
+    const data = rows.map((r) =>
+      r.sumTotal > 0 ? Math.round((r.sumCorrect / r.sumTotal) * 1000) / 10 : 0,
+    );
     const accent = readCssVar("--accent", "#3d9cf0");
     const border = readCssVar("--border", "rgba(128,128,128,0.2)");
     const text = readCssVar("--text", "#e8ecf1");
@@ -191,7 +193,9 @@
       td2.innerHTML = `<span class="stats-result-n">${c}/${t}</span> <span class="stats-result-p">(${pct}%)</span>`;
       const td3 = document.createElement("td");
       const spanType = document.createElement("span");
-      spanType.className = a.review_mode ? "stats-pill stats-pill--review" : "stats-pill stats-pill--quiz";
+      spanType.className = a.review_mode
+        ? "stats-pill stats-pill--review"
+        : "stats-pill stats-pill--quiz";
       spanType.textContent = typeLabel;
       td3.appendChild(spanType);
       const td4 = document.createElement("td");
@@ -221,9 +225,21 @@
       : "—";
 
     const cards = [
-      { k: "Tentativi registrati", v: String(totalAttempts), d: "Sessioni finite salvate sul cloud" },
-      { k: "Precisione complessiva", v: `${pct}%`, d: `${sumCorrect} corrette su ${sumTotal} domande` },
-      { k: "Cartelle con dati", v: String(folderCount), d: "Raggruppamenti con almeno un tentativo" },
+      {
+        k: "Tentativi registrati",
+        v: String(totalAttempts),
+        d: "Sessioni finite salvate sul cloud",
+      },
+      {
+        k: "Precisione complessiva",
+        v: `${pct}%`,
+        d: `${sumCorrect} corrette su ${sumTotal} domande`,
+      },
+      {
+        k: "Cartelle con dati",
+        v: String(folderCount),
+        d: "Raggruppamenti con almeno un tentativo",
+      },
       { k: "Ultimo allenamento", v: lastStr, d: "Data dell’ultimo tentativo" },
     ];
 
@@ -300,7 +316,8 @@
       if (errEl) {
         errEl.hidden = false;
         errEl.textContent =
-          e1.message || "Impossibile caricare le statistiche. Verifica le policy RLS e lo schema quiz_attempts.";
+          e1.message ||
+          "Impossibile caricare le statistiche. Verifica le policy RLS e lo schema quiz_attempts.";
       }
       if (noData) noData.hidden = true;
       if (chartWrap) chartWrap.hidden = true;
@@ -326,7 +343,10 @@
     /** @type {Record<string, string | null>} */
     const savedQuizFolderId = {};
     if (savedQuizIds.length > 0) {
-      const { data: sqRows } = await sb.from("saved_quizzes").select("id,folder_id").in("id", savedQuizIds);
+      const { data: sqRows } = await sb
+        .from("saved_quizzes")
+        .select("id,folder_id")
+        .in("id", savedQuizIds);
       (sqRows || []).forEach((row) => {
         savedQuizFolderId[row.id] = row.folder_id || null;
       });
@@ -359,8 +379,18 @@
 
     const rows = Object.keys(agg).map((folderKey) => {
       const g = agg[folderKey];
-      const label = folderKey === "__none__" ? "Senza cartella" : folderNames[folderKey] || "Cartella (rimossa)";
-      return { folderKey, label, attempts: g.attempts, sumCorrect: g.sumCorrect, sumTotal: g.sumTotal, lastAt: g.lastAt };
+      const label =
+        folderKey === "__none__"
+          ? "Senza cartella"
+          : folderNames[folderKey] || "Cartella (rimossa)";
+      return {
+        folderKey,
+        label,
+        attempts: g.attempts,
+        sumCorrect: g.sumCorrect,
+        sumTotal: g.sumTotal,
+        lastAt: g.lastAt,
+      };
     });
 
     rows.sort((a, b) => b.attempts - a.attempts);

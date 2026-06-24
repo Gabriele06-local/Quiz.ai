@@ -8,7 +8,7 @@
       .trim()
       .toLowerCase()
       .replace(/\s+/g, " ")
-      .replace(/[''′`]/g, "'");
+      .replace(/['\u2019′`]/g, "'");
   }
 
   /**

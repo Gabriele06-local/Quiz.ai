@@ -15,7 +15,10 @@
     } catch (e) {}
     const btn = $("btn-theme");
     if (btn) {
-      btn.setAttribute("aria-label", next === "dark" ? "Passa al tema chiaro" : "Passa al tema scuro");
+      btn.setAttribute(
+        "aria-label",
+        next === "dark" ? "Passa al tema chiaro" : "Passa al tema scuro",
+      );
       btn.setAttribute("title", next === "dark" ? "Tema chiaro (giorno)" : "Tema scuro (notte)");
     }
   }
